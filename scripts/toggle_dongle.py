@@ -112,14 +112,32 @@ class DongleToggler:
     def check_current_ip(self) -> Optional[str]:
         """현재 외부 IP 확인"""
         try:
-            # 특정 인터페이스를 통해 외부 IP 확인
-            cmd = f"curl --interface {self.local_ip} -s -m 5 https://ipinfo.io/ip"
+            # 여러 방법으로 IP 확인 시도
+            commands = [
+                f"curl --interface {self.local_ip} -k -s -m 5 http://ipinfo.io/ip",
+                f"curl --interface {self.local_ip} -k -s -m 5 https://ipinfo.io/ip",
+                "curl -s -m 5 http://ipinfo.io/ip",  # fallback to default route
+                "curl -s -m 5 https://ipinfo.io/ip"   # fallback with https
+            ]
+            
             import subprocess
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip()
+            for cmd in commands:
+                try:
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                    if result.returncode == 0 and result.stdout.strip():
+                        ip = result.stdout.strip()
+                        if ip and '.' in ip:  # basic IP validation
+                            logger.info(f"IP 확인 성공: {ip} (명령어: {cmd})")
+                            return ip
+                except subprocess.TimeoutExpired:
+                    logger.warning(f"IP 확인 타임아웃: {cmd}")
+                    continue
+                except Exception as e:
+                    logger.warning(f"IP 확인 실패: {cmd}, 오류: {e}")
+                    continue
+                    
         except Exception as e:
-            logger.error(f"IP 확인 실패: {e}")
+            logger.error(f"IP 확인 전체 실패: {e}")
         return None
     
     def toggle_network_mode(self, client: Client) -> bool:
