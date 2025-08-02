@@ -1,0 +1,33 @@
+0:	from all lookup local
+100:	from 112.161.54.7 lookup 100
+110:	from all sport 22 lookup 100
+110:	from all sport 8080 lookup 100
+111:	from 192.168.11.0/24 lookup dongle11
+112:	from 192.168.12.0/24 lookup dongle12
+113:	from 192.168.13.0/24 lookup dongle13
+114:	from 192.168.14.0/24 lookup dongle14
+115:	from 192.168.15.0/24 lookup dongle15
+116:	from 192.168.16.0/24 lookup dongle16
+117:	from 192.168.17.0/24 lookup dongle17
+118:	from 192.168.18.0/24 lookup dongle18
+119:	from 192.168.19.0/24 lookup dongle19
+211:	from all iif enp0s21f0u3u4u4 lookup dongle11
+212:	from all iif enp0s21f0u3u4u1 lookup dongle12
+213:	from all iif enp0s21f0u3u4u2 lookup dongle13
+214:	from all iif enp0s21f0u3u4u3 lookup dongle14
+215:	from all iif enp0s21f0u3u1u4 lookup dongle15
+216:	from all iif enp0s21f0u3u1u1 lookup dongle16
+217:	from all iif enp0s21f0u3u1u2 lookup dongle17
+218:	from all iif enp0s21f0u3u1u3 lookup dongle18
+219:	from all iif enp0s21f0u3u2 lookup dongle19
+311:	from all fwmark 0xb lookup dongle11
+312:	from all fwmark 0xc lookup dongle12
+313:	from all fwmark 0xd lookup dongle13
+314:	from all fwmark 0xe lookup dongle14
+315:	from all fwmark 0xf lookup dongle15
+316:	from all fwmark 0x10 lookup dongle16
+317:	from all fwmark 0x11 lookup dongle17
+318:	from all fwmark 0x12 lookup dongle18
+319:	from all fwmark 0x13 lookup dongle19
+32766:	from all lookup main
+32767:	from all lookup default

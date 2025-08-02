@@ -1,0 +1,70 @@
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: eno1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 7c:10:c9:50:63:21 brd ff:ff:ff:ff:ff:ff
+    altname enp2s0
+    inet 112.161.54.7/24 brd 112.161.54.255 scope global dynamic noprefixroute eno1
+       valid_lft 5491sec preferred_lft 5491sec
+    inet6 fe80::7e10:c9ff:fe50:6321/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+3: enp0s21f0u3u2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 1000
+    link/ether 00:1e:10:1f:00:00 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.19.100/24 brd 192.168.19.255 scope global dynamic noprefixroute enp0s21f0u3u2
+       valid_lft 602395sec preferred_lft 602395sec
+    inet6 fe80::5d35:36cd:3d27:29bb/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+4: enp0s21f0u3u1u1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 1000
+    link/ether 00:1e:10:1f:00:00 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.16.100/24 brd 192.168.16.255 scope global dynamic noprefixroute enp0s21f0u3u1u1
+       valid_lft 602395sec preferred_lft 602395sec
+    inet6 fe80::65a5:faa5:2434:918d/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+5: enp0s21f0u3u1u2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 1000
+    link/ether 00:1e:10:1f:00:00 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.17.100/24 brd 192.168.17.255 scope global dynamic noprefixroute enp0s21f0u3u1u2
+       valid_lft 602395sec preferred_lft 602395sec
+    inet6 fe80::4699:4d3c:dba3:457e/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+6: enp0s21f0u3u1u3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 1000
+    link/ether 00:1e:10:1f:00:00 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.18.100/24 brd 192.168.18.255 scope global dynamic noprefixroute enp0s21f0u3u1u3
+       valid_lft 602395sec preferred_lft 602395sec
+    inet6 fe80::730a:5d17:efc5:891d/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+7: enp0s21f0u3u1u4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 1000
+    link/ether 00:1e:10:1f:00:00 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.15.100/24 brd 192.168.15.255 scope global dynamic noprefixroute enp0s21f0u3u1u4
+       valid_lft 602395sec preferred_lft 602395sec
+    inet6 fe80::327b:77bc:d83a:3737/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+8: enp0s21f0u3u4u1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 1000
+    link/ether 00:1e:10:1f:00:00 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.12.100/24 brd 192.168.12.255 scope global dynamic noprefixroute enp0s21f0u3u4u1
+       valid_lft 602395sec preferred_lft 602395sec
+    inet6 fe80::baa9:7de0:bfd1:b6b7/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+9: enp0s21f0u3u4u2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 1000
+    link/ether 00:1e:10:1f:00:00 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.13.100/24 brd 192.168.13.255 scope global dynamic noprefixroute enp0s21f0u3u4u2
+       valid_lft 602395sec preferred_lft 602395sec
+    inet6 fe80::aeb8:e02a:60c3:733b/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+10: enp0s21f0u3u4u3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 1000
+    link/ether 00:1e:10:1f:00:00 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.14.100/24 brd 192.168.14.255 scope global dynamic noprefixroute enp0s21f0u3u4u3
+       valid_lft 602395sec preferred_lft 602395sec
+    inet6 fe80::b31:3c34:90ab:e52c/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+11: enp0s21f0u3u4u4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 1000
+    link/ether 00:1e:10:1f:00:00 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.11.100/24 brd 192.168.11.255 scope global dynamic noprefixroute enp0s21f0u3u4u4
+       valid_lft 602395sec preferred_lft 602395sec
+    inet6 fe80::9575:5095:a418:6ff2/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+12: wlo1: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether 54:14:f3:71:77:8f brd ff:ff:ff:ff:ff:ff
+    altname wlp0s12f0

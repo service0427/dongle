@@ -1,0 +1,102 @@
+default via 112.161.54.254 dev eno1 table 100 
+default via 192.168.11.1 dev enp0s21f0u3u4u4 table dongle11 
+default via 192.168.12.1 dev enp0s21f0u3u4u1 table dongle12 
+default via 192.168.13.1 dev enp0s21f0u3u4u2 table dongle13 
+default via 192.168.14.1 dev enp0s21f0u3u4u3 table dongle14 
+default via 192.168.15.1 dev enp0s21f0u3u1u4 table dongle15 
+default via 192.168.16.1 dev enp0s21f0u3u1u1 table dongle16 
+default via 192.168.17.1 dev enp0s21f0u3u1u2 table dongle17 
+default via 192.168.18.1 dev enp0s21f0u3u1u3 table dongle18 
+default via 192.168.19.1 dev enp0s21f0u3u2 table dongle19 
+default via 112.161.54.254 dev eno1 metric 100 
+default via 192.168.16.1 dev enp0s21f0u3u1u1 proto dhcp src 192.168.16.100 metric 100 
+default via 192.168.17.1 dev enp0s21f0u3u1u2 proto dhcp src 192.168.17.100 metric 101 
+default via 192.168.18.1 dev enp0s21f0u3u1u3 proto dhcp src 192.168.18.100 metric 102 
+default via 192.168.15.1 dev enp0s21f0u3u1u4 proto dhcp src 192.168.15.100 metric 103 
+default via 192.168.19.1 dev enp0s21f0u3u2 proto dhcp src 192.168.19.100 metric 104 
+default via 192.168.12.1 dev enp0s21f0u3u4u1 proto dhcp src 192.168.12.100 metric 105 
+default via 192.168.13.1 dev enp0s21f0u3u4u2 proto dhcp src 192.168.13.100 metric 106 
+default via 192.168.14.1 dev enp0s21f0u3u4u3 proto dhcp src 192.168.14.100 metric 107 
+default via 192.168.11.1 dev enp0s21f0u3u4u4 proto dhcp src 192.168.11.100 metric 108 
+default via 192.168.16.1 dev enp0s21f0u3u1u1 metric 200 
+default via 192.168.17.1 dev enp0s21f0u3u1u2 metric 210 
+default via 192.168.18.1 dev enp0s21f0u3u1u3 metric 220 
+default via 192.168.15.1 dev enp0s21f0u3u1u4 metric 230 
+default via 192.168.19.1 dev enp0s21f0u3u2 metric 240 
+default via 192.168.12.1 dev enp0s21f0u3u4u1 metric 250 
+default via 192.168.13.1 dev enp0s21f0u3u4u2 metric 260 
+default via 192.168.14.1 dev enp0s21f0u3u4u3 metric 270 
+default via 192.168.11.1 dev enp0s21f0u3u4u4 metric 280 
+112.161.54.0/24 dev eno1 proto kernel scope link src 112.161.54.7 metric 100 
+192.168.11.0/24 dev enp0s21f0u3u4u4 proto kernel scope link src 192.168.11.100 metric 108 
+192.168.12.0/24 dev enp0s21f0u3u4u1 proto kernel scope link src 192.168.12.100 metric 105 
+192.168.13.0/24 dev enp0s21f0u3u4u2 proto kernel scope link src 192.168.13.100 metric 106 
+192.168.14.0/24 dev enp0s21f0u3u4u3 proto kernel scope link src 192.168.14.100 metric 107 
+192.168.15.0/24 dev enp0s21f0u3u1u4 proto kernel scope link src 192.168.15.100 metric 103 
+192.168.16.0/24 dev enp0s21f0u3u1u1 proto kernel scope link src 192.168.16.100 metric 100 
+192.168.17.0/24 dev enp0s21f0u3u1u2 proto kernel scope link src 192.168.17.100 metric 101 
+192.168.18.0/24 dev enp0s21f0u3u1u3 proto kernel scope link src 192.168.18.100 metric 102 
+192.168.19.0/24 dev enp0s21f0u3u2 proto kernel scope link src 192.168.19.100 metric 104 
+local 112.161.54.7 dev eno1 table local proto kernel scope host src 112.161.54.7 
+broadcast 112.161.54.255 dev eno1 table local proto kernel scope link src 112.161.54.7 
+local 127.0.0.0/8 dev lo table local proto kernel scope host src 127.0.0.1 
+local 127.0.0.1 dev lo table local proto kernel scope host src 127.0.0.1 
+broadcast 127.255.255.255 dev lo table local proto kernel scope link src 127.0.0.1 
+local 192.168.11.100 dev enp0s21f0u3u4u4 table local proto kernel scope host src 192.168.11.100 
+broadcast 192.168.11.255 dev enp0s21f0u3u4u4 table local proto kernel scope link src 192.168.11.100 
+local 192.168.12.100 dev enp0s21f0u3u4u1 table local proto kernel scope host src 192.168.12.100 
+broadcast 192.168.12.255 dev enp0s21f0u3u4u1 table local proto kernel scope link src 192.168.12.100 
+local 192.168.13.100 dev enp0s21f0u3u4u2 table local proto kernel scope host src 192.168.13.100 
+broadcast 192.168.13.255 dev enp0s21f0u3u4u2 table local proto kernel scope link src 192.168.13.100 
+local 192.168.14.100 dev enp0s21f0u3u4u3 table local proto kernel scope host src 192.168.14.100 
+broadcast 192.168.14.255 dev enp0s21f0u3u4u3 table local proto kernel scope link src 192.168.14.100 
+local 192.168.15.100 dev enp0s21f0u3u1u4 table local proto kernel scope host src 192.168.15.100 
+broadcast 192.168.15.255 dev enp0s21f0u3u1u4 table local proto kernel scope link src 192.168.15.100 
+local 192.168.16.100 dev enp0s21f0u3u1u1 table local proto kernel scope host src 192.168.16.100 
+broadcast 192.168.16.255 dev enp0s21f0u3u1u1 table local proto kernel scope link src 192.168.16.100 
+local 192.168.17.100 dev enp0s21f0u3u1u2 table local proto kernel scope host src 192.168.17.100 
+broadcast 192.168.17.255 dev enp0s21f0u3u1u2 table local proto kernel scope link src 192.168.17.100 
+local 192.168.18.100 dev enp0s21f0u3u1u3 table local proto kernel scope host src 192.168.18.100 
+broadcast 192.168.18.255 dev enp0s21f0u3u1u3 table local proto kernel scope link src 192.168.18.100 
+local 192.168.19.100 dev enp0s21f0u3u2 table local proto kernel scope host src 192.168.19.100 
+broadcast 192.168.19.255 dev enp0s21f0u3u2 table local proto kernel scope link src 192.168.19.100 
+::1 dev lo proto kernel metric 256 pref medium
+fe80::/64 dev enp0s21f0u3u1u1 proto kernel metric 1024 pref medium
+fe80::/64 dev enp0s21f0u3u1u2 proto kernel metric 1024 pref medium
+fe80::/64 dev enp0s21f0u3u1u3 proto kernel metric 1024 pref medium
+fe80::/64 dev enp0s21f0u3u1u4 proto kernel metric 1024 pref medium
+fe80::/64 dev enp0s21f0u3u2 proto kernel metric 1024 pref medium
+fe80::/64 dev enp0s21f0u3u4u1 proto kernel metric 1024 pref medium
+fe80::/64 dev enp0s21f0u3u4u2 proto kernel metric 1024 pref medium
+fe80::/64 dev enp0s21f0u3u4u3 proto kernel metric 1024 pref medium
+fe80::/64 dev enp0s21f0u3u4u4 proto kernel metric 1024 pref medium
+fe80::/64 dev eno1 proto kernel metric 1024 pref medium
+default via fe80::7ac5:f8ff:feda:64d7 dev enp0s21f0u3u1u2 proto ra metric 101 pref high
+default via fe80::96e9:eeff:fe6a:401d dev enp0s21f0u3u1u3 proto ra metric 102 pref high
+default via fe80::7ac5:f8ff:feda:64af dev enp0s21f0u3u1u4 proto ra metric 103 pref high
+default via fe80::96e9:eeff:fe6c:5b45 dev enp0s21f0u3u2 proto ra metric 104 pref high
+default via fe80::96e9:eeff:fe6a:36c5 dev enp0s21f0u3u4u1 proto ra metric 105 pref high
+default via fe80::7ac5:f8ff:feda:657b dev enp0s21f0u3u4u2 proto ra metric 106 pref high
+default via fe80::96e9:eeff:fe6b:6f71 dev enp0s21f0u3u4u3 proto ra metric 107 pref high
+default via fe80::96e9:eeff:fe6a:371d dev enp0s21f0u3u4u4 proto ra metric 108 pref high
+local ::1 dev lo table local proto kernel metric 0 pref medium
+local fe80::b31:3c34:90ab:e52c dev enp0s21f0u3u4u3 table local proto kernel metric 0 pref medium
+local fe80::327b:77bc:d83a:3737 dev enp0s21f0u3u1u4 table local proto kernel metric 0 pref medium
+local fe80::4699:4d3c:dba3:457e dev enp0s21f0u3u1u2 table local proto kernel metric 0 pref medium
+local fe80::5d35:36cd:3d27:29bb dev enp0s21f0u3u2 table local proto kernel metric 0 pref medium
+local fe80::65a5:faa5:2434:918d dev enp0s21f0u3u1u1 table local proto kernel metric 0 pref medium
+local fe80::730a:5d17:efc5:891d dev enp0s21f0u3u1u3 table local proto kernel metric 0 pref medium
+local fe80::7e10:c9ff:fe50:6321 dev eno1 table local proto kernel metric 0 pref medium
+local fe80::9575:5095:a418:6ff2 dev enp0s21f0u3u4u4 table local proto kernel metric 0 pref medium
+local fe80::aeb8:e02a:60c3:733b dev enp0s21f0u3u4u2 table local proto kernel metric 0 pref medium
+local fe80::baa9:7de0:bfd1:b6b7 dev enp0s21f0u3u4u1 table local proto kernel metric 0 pref medium
+multicast ff00::/8 dev enp0s21f0u3u1u1 table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev enp0s21f0u3u1u2 table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev enp0s21f0u3u1u3 table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev enp0s21f0u3u1u4 table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev enp0s21f0u3u2 table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev enp0s21f0u3u4u1 table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev enp0s21f0u3u4u2 table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev enp0s21f0u3u4u3 table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev enp0s21f0u3u4u4 table local proto kernel metric 256 pref medium
+multicast ff00::/8 dev eno1 table local proto kernel metric 256 pref medium

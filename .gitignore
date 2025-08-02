@@ -1,0 +1,31 @@
+# 로그 파일
+logs/*.log
+logs/*.json
+logs/state.json
+
+# 데이터 파일
+data/*.json
+
+# 임시 파일
+*.tmp
+*.bak
+*.swp
+*~
+
+# Python 캐시
+__pycache__/
+*.pyc
+*.pyo
+
+# 설정 파일 (민감 정보)
+config/credentials.json
+
+# 아카이브
+archive/
+
+# 테스트 파일
+test_*
+
+# Node.js
+node_modules/
+package-lock.json

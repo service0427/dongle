@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# NetworkManager dispatcher script for dongle routing
+# Triggered when interface gets IP address
+
+INTERFACE=$1
+ACTION=$2
+LOG_FILE="/home/proxy/network-monitor/logs/dongle_events.log"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+}
+
+# Only process USB ethernet interfaces
+if [[ ! "$INTERFACE" =~ ^enp.*u[0-9] ]]; then
+    exit 0
+fi
+
+# Only process when interface is up with IP
+if [ "$ACTION" = "up" ]; then
+    # Get IP address
+    IP=$(ip addr show $INTERFACE | grep "inet 192.168" | awk '{print $2}' | cut -d'/' -f1)
+    
+    if [[ $IP =~ 192\.168\.([0-9]+)\.100 ]]; then
+        SUBNET="${BASH_REMATCH[1]}"
+        
+        # Check if routing already exists
+        if ip rule list | grep -q "from $IP lookup dongle$SUBNET"; then
+            log "Routes already exist for dongle$SUBNET"
+            exit 0
+        fi
+        
+        log "NetworkManager: Adding routes for dongle$SUBNET on $INTERFACE"
+        
+        # Add routing table entry
+        ip route add default via 192.168.$SUBNET.1 dev $INTERFACE table dongle$SUBNET 2>/dev/null
+        
+        # Add routing rule
+        ip rule add from $IP table dongle$SUBNET 2>/dev/null
+        
+        # Add NAT if not exists
+        iptables -t nat -C POSTROUTING -o $INTERFACE -j MASQUERADE 2>/dev/null || \
+        iptables -t nat -A POSTROUTING -o $INTERFACE -j MASQUERADE
+        
+        log "NetworkManager: Dongle$SUBNET configured successfully"
+    fi
+elif [ "$ACTION" = "down" ]; then
+    # Get subnet from interface that's going down
+    IP=$(ip addr show $INTERFACE 2>/dev/null | grep "inet 192.168" | awk '{print $2}' | cut -d'/' -f1)
+    
+    if [[ $IP =~ 192\.168\.([0-9]+)\.100 ]]; then
+        SUBNET="${BASH_REMATCH[1]}"
+        log "NetworkManager: Removing routes for dongle$SUBNET"
+        
+        # Remove routing rule
+        ip rule del from $IP table dongle$SUBNET 2>/dev/null
+        
+        # Flush routing table
+        ip route flush table dongle$SUBNET 2>/dev/null
+    fi
+fi

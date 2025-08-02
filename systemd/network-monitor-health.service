@@ -1,0 +1,26 @@
+[Unit]
+Description=Network Monitor Health Check Web Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node /home/proxy/network-monitor/scripts/health_check.js
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=network-monitor-health
+Environment="NODE_ENV=production"
+Environment="HEALTH_CHECK_PORT=8080"
+
+# 보안 설정
+User=root
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/home/proxy/network-monitor/logs
+ReadOnlyPaths=/home/proxy/network-monitor/scripts /home/proxy/network-monitor/config
+
+[Install]
+WantedBy=multi-user.target

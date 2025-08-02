@@ -1,0 +1,24 @@
+[Unit]
+Description=Network Interface Monitor and Recovery Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/home/proxy/network-monitor/scripts/monitor.sh
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=network-monitor
+
+# 보안 설정
+User=root
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/home/proxy/network-monitor/logs
+ReadOnlyPaths=/home/proxy/network-monitor/scripts /home/proxy/network-monitor/config
+
+[Install]
+WantedBy=multi-user.target

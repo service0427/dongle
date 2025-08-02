@@ -1,0 +1,172 @@
+#!/bin/bash
+
+# 개선된 모니터링 스크립트 - 여러 번 실패 시에만 recovery 실행
+
+LOG_FILE="/home/proxy/network-monitor/logs/monitor.log"
+FAIL_COUNT_FILE="/tmp/network-monitor-fail-count"
+MAX_FAILURES=3  # 3번 연속 실패 시 recovery 실행
+CHECK_INTERVAL=60
+EXTERNAL_CHECK_URL="https://ipinfo.io/ip"
+
+# 실패 카운트 관리
+get_fail_count() {
+    if [ -f "$FAIL_COUNT_FILE" ]; then
+        cat "$FAIL_COUNT_FILE"
+    else
+        echo "0"
+    fi
+}
+
+set_fail_count() {
+    echo "$1" > "$FAIL_COUNT_FILE"
+}
+
+reset_fail_count() {
+    set_fail_count "0"
+}
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+# 메인 인터페이스 찾기
+find_main_interface() {
+    # eno1이 있으면 사용, 없으면 eth0, 그것도 없으면 첫 번째 non-dongle 인터페이스
+    if ip link show eno1 &>/dev/null; then
+        echo "eno1"
+    elif ip link show eth0 &>/dev/null; then
+        echo "eth0"
+    else
+        ip route | grep default | grep -v "192.168" | head -1 | awk '{print $5}'
+    fi
+}
+
+# 연결 테스트 - 여러 방법으로 시도
+test_connectivity() {
+    local interface=$1
+    local tests_passed=0
+    local total_tests=3
+    
+    # Test 1: curl로 외부 IP 확인 (타임아웃 20초)
+    log "Test 1: Checking external IP via $interface..."
+    if timeout 20 curl --interface "$interface" -s "$EXTERNAL_CHECK_URL" >/dev/null 2>&1; then
+        ((tests_passed++))
+        log "Test 1 passed"
+    else
+        log "Test 1 failed"
+    fi
+    
+    # Test 2: 게이트웨이 ping
+    local gateway=$(ip route | grep "dev $interface" | grep default | awk '{print $3}' | head -1)
+    if [ ! -z "$gateway" ]; then
+        log "Test 2: Pinging gateway $gateway..."
+        if ping -c 2 -W 2 -I "$interface" "$gateway" >/dev/null 2>&1; then
+            ((tests_passed++))
+            log "Test 2 passed"
+        else
+            log "Test 2 failed"
+        fi
+    else
+        log "Test 2 skipped - no gateway found"
+        ((total_tests--))
+    fi
+    
+    # Test 3: DNS 조회 (구글 DNS 사용)
+    log "Test 3: Testing DNS resolution..."
+    if timeout 5 getent hosts google.com >/dev/null 2>&1; then
+        ((tests_passed++))
+        log "Test 3 passed"
+    else
+        log "Test 3 failed"
+    fi
+    
+    # 절반 이상 성공하면 OK
+    local required_passes=$((total_tests / 2 + 1))
+    if [ $tests_passed -ge $required_passes ]; then
+        return 0
+    else
+        log "Connectivity test failed: $tests_passed/$total_tests tests passed"
+        return 1
+    fi
+}
+
+# 부드러운 recovery - 인터페이스 재시작 없이 먼저 시도
+soft_recovery() {
+    local interface=$1
+    log "Starting soft recovery for $interface..."
+    
+    # 1. 라우팅 메트릭만 재조정
+    log "Adjusting routing metrics..."
+    ip route del default via $(ip route | grep "dev $interface" | grep default | awk '{print $3}' | head -1) dev $interface 2>/dev/null
+    ip route add default via $(ip route | grep "dev $interface" | grep default | awk '{print $3}' | head -1) dev $interface metric 100 2>/dev/null
+    
+    # 2. DNS 캐시 플러시
+    log "Flushing DNS cache..."
+    systemctl restart systemd-resolved 2>/dev/null || true
+    
+    # 3. ARP 캐시 클리어
+    log "Clearing ARP cache..."
+    ip neigh flush dev $interface
+    
+    sleep 5
+    
+    # 다시 테스트
+    if test_connectivity "$interface"; then
+        log "Soft recovery successful"
+        return 0
+    else
+        log "Soft recovery failed"
+        return 1
+    fi
+}
+
+# 메인 모니터링 루프
+main() {
+    MAIN_INTERFACE=$(find_main_interface)
+    log "Starting improved network monitor for interface: $MAIN_INTERFACE"
+    
+    # 초기 대기 (재부팅 후 안정화)
+    if [ ! -f "/tmp/network-monitor-started" ]; then
+        log "First run detected, waiting 60s for network stabilization..."
+        touch "/tmp/network-monitor-started"
+        sleep 60
+    fi
+    
+    while true; do
+        log "Starting monitoring cycle..."
+        
+        if test_connectivity "$MAIN_INTERFACE"; then
+            log "All connectivity tests passed"
+            reset_fail_count
+        else
+            current_failures=$(get_fail_count)
+            ((current_failures++))
+            set_fail_count "$current_failures"
+            
+            log "Connectivity test failed (failure count: $current_failures/$MAX_FAILURES)"
+            
+            if [ $current_failures -ge $MAX_FAILURES ]; then
+                log "Maximum failures reached, attempting recovery..."
+                
+                # 먼저 soft recovery 시도
+                if ! soft_recovery "$MAIN_INTERFACE"; then
+                    log "Soft recovery failed, running full recovery..."
+                    # 여기서 기존 recovery.sh 실행
+                    /home/proxy/network-monitor/scripts/recovery.sh "$MAIN_INTERFACE" "$(ls /sys/class/net | grep -E 'enp0s21f0u3' | tr '\n' ' ')"
+                fi
+                
+                reset_fail_count
+            else
+                log "Waiting before next check (failure $current_failures/$MAX_FAILURES)..."
+            fi
+        fi
+        
+        log "Sleeping for $CHECK_INTERVAL seconds..."
+        sleep $CHECK_INTERVAL
+    done
+}
+
+# 시그널 핸들러
+trap 'log "Monitor stopped"; rm -f /tmp/network-monitor-started; exit 0' SIGTERM SIGINT
+
+main

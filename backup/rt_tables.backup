@@ -1,0 +1,20 @@
+#
+# reserved values
+#
+255	local
+254	main
+253	default
+0	unspec
+#
+# local
+#
+#1	inr.ruhep111 dongle11
+111 dongle11
+112 dongle12
+113 dongle13
+114 dongle14
+115 dongle15
+116 dongle16
+117 dongle17
+118 dongle18
+119 dongle19
