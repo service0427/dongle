@@ -81,8 +81,8 @@ function getProxyStatus() {
                     proxyInfo.traffic = state[subnet].traffic || state[subnet].traffic_mb || { upload: 0, download: 0 };
                 }
                 
-                // 외부 IP가 없으면 확인 (첫 로드시에만)
-                if (!proxyInfo.external_ip && !state[subnet]) {
+                // 외부 IP가 없거나 null이면 확인
+                if (!proxyInfo.external_ip) {
                     try {
                         const ip = execSync(
                             `timeout 2 curl --socks5 127.0.0.1:${portNum} -s http://techb.kr/ip.php 2>/dev/null | head -1`,
