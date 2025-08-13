@@ -21,12 +21,12 @@ MAIN_GW=$(ip route show | grep "^default" | grep -v "192.168" | head -1 | awk '{
 if [ -n "$MAIN_GW" ] && [ -n "$MAIN_DEV" ]; then
     # 메인 인터페이스 메트릭 확인
     CURRENT_METRIC=$(ip route show | grep "^default via $MAIN_GW" | grep -o "metric [0-9]*" | awk '{print $2}')
-    if [ "$CURRENT_METRIC" != "100" ]; then
+    if [ "$CURRENT_METRIC" != "1" ]; then
         ip route del default via $MAIN_GW dev $MAIN_DEV 2>/dev/null
-        ip route add default via $MAIN_GW dev $MAIN_DEV metric 100
-        echo "   메인 게이트웨이: $MAIN_GW ($MAIN_DEV) - metric 100 설정"
+        ip route add default via $MAIN_GW dev $MAIN_DEV metric 1
+        echo "   메인 게이트웨이: $MAIN_GW ($MAIN_DEV) - metric 1 설정"
     else
-        echo "   메인 게이트웨이: $MAIN_GW ($MAIN_DEV) - metric 100 유지"
+        echo "   메인 게이트웨이: $MAIN_GW ($MAIN_DEV) - metric 1 유지"
     fi
 fi
 

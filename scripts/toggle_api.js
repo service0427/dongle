@@ -15,6 +15,24 @@ const STATE_FILE = '/home/proxy/proxy_state.json';
 const MAX_CONCURRENT_TOGGLES = 3; // 최대 동시 토글 수
 const activeLocks = new Set(); // 현재 실행 중인 토글 추적
 
+// 서버 외부 IP 동적 감지 (캐시)
+let serverIP = null;
+function getServerIP() {
+    if (!serverIP) {
+        try {
+            // 1차: 외부 서비스로 확인
+            serverIP = execSync('curl -s -m 3 http://techb.kr/ip.php 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
+            if (!serverIP || !serverIP.match(/^\d+\.\d+\.\d+\.\d+$/)) {
+                // 2차: 메인 인터페이스 IP
+                serverIP = execSync('ip route get 8.8.8.8 2>/dev/null | awk \'{print $7; exit}\'', { encoding: 'utf8' }).trim();
+            }
+        } catch (e) {
+            serverIP = '0.0.0.0'; // 기본값
+        }
+    }
+    return serverIP;
+}
+
 // 상태 파일 로드
 function loadState() {
     try {
@@ -50,7 +68,7 @@ function getProxyStatus() {
                 const subnet = portNum - 10000;
                 
                 let proxyInfo = {
-                    proxy_url: `socks5://112.161.54.7:${portNum}`,
+                    proxy_url: `socks5://${getServerIP()}:${portNum}`,
                     external_ip: null,
                     last_toggle: null,
                     traffic: { upload: 0, download: 0 }
