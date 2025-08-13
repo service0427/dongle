@@ -46,7 +46,7 @@ if [ -z "$SERVER_IP" ]; then
 fi
 # 여전히 없으면 기본값 사용
 if [ -z "$SERVER_IP" ]; then
-    SERVER_IP="112.161.54.7"
+    SERVER_IP="0.0.0.0"
 fi
 
 # 서버가 기대하는 형식으로 변환

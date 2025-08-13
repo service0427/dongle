@@ -24,6 +24,17 @@ failed=0
 # IP 체크 URL
 CHECK_URL="http://techb.kr/ip.php"
 
+# 서버 외부 IP 동적으로 가져오기
+SERVER_IP=$(curl -s -m 3 http://techb.kr/ip.php 2>/dev/null | head -1)
+if [ -z "$SERVER_IP" ]; then
+    # 실패시 메인 인터페이스 IP 사용
+    SERVER_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7; exit}')
+fi
+# 여전히 없으면 기본값 사용
+if [ -z "$SERVER_IP" ]; then
+    SERVER_IP="0.0.0.0"
+fi
+
 # 헤더 출력
 printf "%-8s %-15s %-20s %-15s %-10s\n" "동글" "포트" "외부 IP" "응답시간" "상태"
 echo "---------------------------------------------------------------------------"
@@ -109,7 +120,7 @@ if [ $working -gt 0 ]; then
         if [ $? -eq 0 ] && [ -n "$result" ]; then
             ip=$(echo "$result" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
             if [ -n "$ip" ]; then
-                echo "  socks5://112.161.54.7:$port -> $ip"
+                echo "  socks5://$SERVER_IP:$port -> $ip"
             fi
         fi
     done
