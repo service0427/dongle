@@ -2,6 +2,33 @@
 
 Huawei E8372h USB 동글을 이용한 SOCKS5 프록시 서버 및 자동 토글 시스템입니다.
 
+## ⚠️ 중요: 초기 네트워크 설정 (필수)
+
+**메인 이더넷 인터페이스의 라우팅 우선순위를 설정해야 합니다.**
+
+### NetworkManager 설정 파일 수정:
+
+```bash
+# 1. 설정 파일 편집 (인터페이스명 확인 필요: eno1, eth0 등)
+sudo vi /etc/NetworkManager/system-connections/eno1.nmconnection
+
+# 2. [ipv4] 섹션에 다음 추가/수정:
+[ipv4]
+route-metric=1
+
+# 3. NetworkManager 재시작
+sudo nmcli con reload
+sudo nmcli con up eno1
+```
+
+**또는 CLI 명령으로 설정:**
+```bash
+sudo nmcli con mod eno1 ipv4.route-metric 1
+sudo nmcli con up eno1
+```
+
+> 💡 이 설정은 메인 이더넷이 동글보다 높은 라우팅 우선순위를 갖도록 보장합니다.
+
 ## 🚀 주요 기능
 
 - **SOCKS5 프록시 서버**: 각 동글별 독립적인 SOCKS5 프록시 제공
