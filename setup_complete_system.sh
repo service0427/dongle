@@ -485,6 +485,25 @@ find $PROJECT_DIR/logs -name "*.log.*" -mtime +7 -delete
 EOF
     chmod +x /etc/cron.daily/proxy-log-cleanup
     
+    # 프록시 상태 보고 cron 추가
+    log_info "프록시 상태 보고 cron 추가..."
+    
+    # 기존 크론탭 백업
+    crontab -l > /tmp/crontab_backup_$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+    
+    # 현재 크론탭 가져오기
+    CURRENT_CRON=$(crontab -l 2>/dev/null || echo "")
+    
+    # push_proxy_status.sh cron이 이미 있는지 확인
+    if ! echo "$CURRENT_CRON" | grep -q "push_proxy_status.sh"; then
+        log_info "프록시 상태 보고 cron 작업 추가 중..."
+        # 새로운 cron 작업 추가
+        (echo "$CURRENT_CRON"; echo "* * * * * CRON_JOB=1 $PROJECT_DIR/scripts/push_proxy_status.sh >/dev/null 2>&1") | crontab -
+        log_info "프록시 상태 보고 cron 작업이 추가되었습니다"
+    else
+        log_info "프록시 상태 보고 cron 작업이 이미 존재합니다"
+    fi
+    
     log_info "로그 관리 설정 완료"
 }
 
@@ -569,6 +588,10 @@ print_summary() {
     echo "# 로그 확인"
     echo "tail -f $PROJECT_DIR/logs/toggle_api.log"
     echo "tail -f $PROJECT_DIR/logs/socks5_proxy.log"
+    echo "tail -f $PROJECT_DIR/logs/push_status.log"
+    echo ""
+    echo "# 크론탭 확인"
+    echo "crontab -l"
     echo ""
     echo "========================================="
     echo ""
