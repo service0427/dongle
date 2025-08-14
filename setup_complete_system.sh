@@ -143,12 +143,14 @@ install_nodejs() {
     
     if command -v node &> /dev/null; then
         CURRENT_VERSION=$(node -v)
-        log_warning "Node.js가 이미 설치되어 있습니다 (버전: $CURRENT_VERSION)"
-        read -p "Node.js 23으로 재설치하시겠습니까? (y/n): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log_info "Node.js 설치 건너뛰기"
+        log_info "Node.js가 이미 설치되어 있습니다 (버전: $CURRENT_VERSION)"
+        
+        # 버전 23인지 확인
+        if [[ "$CURRENT_VERSION" == v23.* ]]; then
+            log_info "Node.js 23이 이미 설치되어 있습니다. 설치 건너뛰기"
             return
+        else
+            log_info "기존 Node.js 버전을 23으로 업데이트합니다"
         fi
     fi
     
