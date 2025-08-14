@@ -450,15 +450,11 @@ setup_selinux() {
     log_info "현재 SELinux 상태: $SELINUX_STATUS"
     
     if [ "$SELINUX_STATUS" = "Enforcing" ]; then
-        log_warning "SELinux가 Enforcing 모드입니다."
-        read -p "SELinux를 Permissive 모드로 변경하시겠습니까? (권장) (y/n): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            log_info "SELinux를 Permissive 모드로 설정..."
-            setenforce 0
-            sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
-            log_info "SELinux 설정 완료 (재부팅 후 적용)"
-        fi
+        log_warning "SELinux가 Enforcing 모드입니다. 프록시 시스템 작동을 위해 Permissive 모드로 변경합니다."
+        log_info "SELinux를 Permissive 모드로 설정..."
+        setenforce 0
+        sed -i 's/SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config
+        log_info "SELinux 설정 완료 (재부팅 후 적용)"
     fi
 }
 
