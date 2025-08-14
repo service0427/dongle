@@ -63,12 +63,42 @@ class SmartToggle:
                                       shell=True, capture_output=True, text=True, timeout=5)
                 diagnosis['ip_rule_exists'] = bool(result.stdout.strip())
                 
-                # 외부 연결 테스트
-                result = subprocess.run(f"curl --interface {interface} -s -m 3 https://mkt.techb.kr/ip",
-                                      shell=True, capture_output=True, text=True, timeout=5)
-                external_ip = result.stdout.strip()
-                diagnosis['external_reachable'] = bool(external_ip and external_ip.split('.')[0].isdigit())
-                diagnosis['current_ip'] = external_ip if diagnosis['external_reachable'] else None
+                # 외부 연결 테스트 (HTTP와 HTTPS 병렬 체크)
+                import concurrent.futures
+                
+                def check_http():
+                    result = subprocess.run(f"curl --interface {interface} -s -m 3 http://techb.kr/ip.php",
+                                          shell=True, capture_output=True, text=True, timeout=5)
+                    return result.stdout.strip()
+                
+                def check_https():
+                    result = subprocess.run(f"curl --interface {interface} -s -m 3 https://mkt.techb.kr/ip",
+                                          shell=True, capture_output=True, text=True, timeout=5)
+                    return result.stdout.strip()
+                
+                # 병렬로 두 체크 실행
+                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                    future_http = executor.submit(check_http)
+                    future_https = executor.submit(check_https)
+                    
+                    http_ip = future_http.result(timeout=5)
+                    https_ip = future_https.result(timeout=5)
+                
+                diagnosis['http_reachable'] = bool(http_ip and http_ip.split('.')[0].isdigit())
+                diagnosis['https_reachable'] = bool(https_ip and https_ip.split('.')[0].isdigit())
+                
+                # 외부 연결 판단 (HTTPS 우선, HTTP 폴백)
+                if diagnosis['https_reachable']:
+                    diagnosis['external_reachable'] = True
+                    diagnosis['current_ip'] = https_ip
+                elif diagnosis['http_reachable']:
+                    diagnosis['external_reachable'] = True
+                    diagnosis['current_ip'] = http_ip
+                    diagnosis['socks5_issue'] = True  # HTTP는 되는데 HTTPS 안 되면 SOCKS5 문제
+                else:
+                    diagnosis['external_reachable'] = False
+                    diagnosis['current_ip'] = None
+                    diagnosis['socks5_issue'] = False
                 
                 # 게이트웨이 연결 확인
                 result = subprocess.run(f"ping -c 1 -W 2 -I {interface} 192.168.{self.subnet}.1",
@@ -79,8 +109,11 @@ class SmartToggle:
                 diagnosis['routing_exists'] = False
                 diagnosis['ip_rule_exists'] = False
                 diagnosis['external_reachable'] = False
+                diagnosis['http_reachable'] = False
+                diagnosis['https_reachable'] = False
                 diagnosis['gateway_reachable'] = False
                 diagnosis['current_ip'] = None
+                diagnosis['socks5_issue'] = False
             
         except Exception as e:
             diagnosis['error'] = str(e)
@@ -88,6 +121,23 @@ class SmartToggle:
         self.diagnosis = diagnosis  # 내부용으로 저장
         
         return diagnosis
+    
+    def restart_socks5(self):
+        """긴급 복구: SOCKS5 서비스 재시작 (HTTP는 되는데 HTTPS 안 될 때)"""
+        try:
+            # SOCKS5 서비스 재시작
+            result = subprocess.run("sudo systemctl restart dongle-socks5", 
+                                  shell=True, capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0:
+                # 재시작 후 서비스 안정화 대기
+                time.sleep(3)
+                # 연결 테스트
+                return self.test_connectivity_https()
+            
+            return False
+        except Exception as e:
+            return False
     
     def fix_routing(self):
         """1단계: 라우팅 재설정"""
@@ -293,7 +343,30 @@ class SmartToggle:
             return False
     
     def test_connectivity(self):
-        """외부 연결 테스트"""
+        """외부 연결 테스트 (HTTPS 우선, HTTP 폴백)"""
+        try:
+            # HTTPS 먼저 시도
+            ip = self.test_connectivity_https()
+            if ip:
+                return True
+            
+            # HTTPS 실패시 HTTP 시도
+            ip = self.test_connectivity_http()
+            if ip:
+                # HTTP는 되는데 HTTPS 안 되면 SOCKS5 재시작
+                subprocess.run("sudo systemctl restart dongle-socks5", shell=True, timeout=10)
+                time.sleep(3)
+                # 다시 HTTPS 시도
+                ip = self.test_connectivity_https()
+                if ip:
+                    return True
+            
+            return False
+        except:
+            return False
+    
+    def test_connectivity_https(self):
+        """항상 HTTPS로 테스트"""
         try:
             interface = self.get_interface()
             if not interface:
@@ -311,19 +384,48 @@ class SmartToggle:
         except:
             return False
     
+    def test_connectivity_http(self):
+        """폴백용 HTTP 테스트"""
+        try:
+            interface = self.get_interface()
+            if not interface:
+                return False
+            
+            result = subprocess.run(f"curl --interface {interface} -s -m 3 http://techb.kr/ip.php",
+                                  shell=True, capture_output=True, text=True, timeout=5)
+            ip = result.stdout.strip()
+            
+            if ip and ip.split('.')[0].isdigit():
+                self.result['ip'] = ip
+                return True
+            
+            return False
+        except:
+            return False
+    
     def get_current_ip(self):
-        """현재 외부 IP 확인"""
+        """현재 외부 IP 확인 (HTTPS 우선, HTTP 폴백)"""
         try:
             interface = self.get_interface()
             if not interface:
                 return None
             
+            # HTTPS 먼저 시도
             result = subprocess.run(f"curl --interface {interface} -s -m 3 https://mkt.techb.kr/ip",
                                   shell=True, capture_output=True, text=True, timeout=5)
             ip = result.stdout.strip()
             
             if ip and ip.split('.')[0].isdigit():
                 return ip
+            
+            # HTTPS 실패시 HTTP 시도
+            result = subprocess.run(f"curl --interface {interface} -s -m 3 http://techb.kr/ip.php",
+                                  shell=True, capture_output=True, text=True, timeout=5)
+            ip = result.stdout.strip()
+            
+            if ip and ip.split('.')[0].isdigit():
+                return ip
+            
             return None
         except:
             return None
@@ -381,6 +483,16 @@ class SmartToggle:
         try:
             # 0단계: 진단
             diagnosis = self.diagnose_problem()
+            
+            # SOCKS5 문제만 있으면 빠른 해결
+            if diagnosis.get('socks5_issue'):
+                # HTTP는 되는데 HTTPS 안 되는 경우 - SOCKS5 재시작만으로 해결
+                if self.restart_socks5():
+                    self.result['success'] = True
+                    self.result['step'] = 0  # 간단한 재시작으로 해결
+                    # 트래픽 정보 수집
+                    self.get_traffic_info()
+                    return self.result
             
             # 진단 결과에 따른 시작 단계 결정
             is_normal = False
