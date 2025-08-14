@@ -64,7 +64,7 @@ class SmartToggle:
                 diagnosis['ip_rule_exists'] = bool(result.stdout.strip())
                 
                 # 외부 연결 테스트
-                result = subprocess.run(f"curl --interface {interface} -s -m 3 http://techb.kr/ip.php",
+                result = subprocess.run(f"curl --interface {interface} -s -m 3 https://mkt.techb.kr/ip",
                                       shell=True, capture_output=True, text=True, timeout=5)
                 external_ip = result.stdout.strip()
                 diagnosis['external_reachable'] = bool(external_ip and external_ip.split('.')[0].isdigit())
@@ -115,7 +115,11 @@ class SmartToggle:
             if success:
                 # 3초 대기 후 연결 테스트
                 time.sleep(3)
-                return self.test_connectivity()
+                if self.test_connectivity():
+                    # 라우팅 문제 해결 후 SOCKS5 재시작
+                    subprocess.run("sudo systemctl restart dongle-socks5", shell=True, timeout=10)
+                    return True
+                return False
             
             return False
             
@@ -246,6 +250,8 @@ class SmartToggle:
             for i in range(15):
                 time.sleep(1)
                 if self.test_connectivity():
+                    # USB 재설정 후 SOCKS5 재시작
+                    subprocess.run("sudo systemctl restart dongle-socks5", shell=True, timeout=10)
                     return True
             
             return False
@@ -276,6 +282,8 @@ class SmartToggle:
             for i in range(60):
                 time.sleep(1)
                 if self.test_connectivity():
+                    # 전원 재시작 후 SOCKS5 재시작
+                    subprocess.run("sudo systemctl restart dongle-socks5", shell=True, timeout=10)
                     return True
             
             return False
@@ -291,7 +299,7 @@ class SmartToggle:
             if not interface:
                 return False
             
-            result = subprocess.run(f"curl --interface {interface} -s -m 3 http://techb.kr/ip.php",
+            result = subprocess.run(f"curl --interface {interface} -s -m 3 https://mkt.techb.kr/ip",
                                   shell=True, capture_output=True, text=True, timeout=5)
             ip = result.stdout.strip()
             
@@ -310,7 +318,7 @@ class SmartToggle:
             if not interface:
                 return None
             
-            result = subprocess.run(f"curl --interface {interface} -s -m 3 http://techb.kr/ip.php",
+            result = subprocess.run(f"curl --interface {interface} -s -m 3 https://mkt.techb.kr/ip",
                                   shell=True, capture_output=True, text=True, timeout=5)
             ip = result.stdout.strip()
             

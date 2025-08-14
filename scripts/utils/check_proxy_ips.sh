@@ -22,10 +22,10 @@ working=0
 failed=0
 
 # IP 체크 URL
-CHECK_URL="http://techb.kr/ip.php"
+CHECK_URL="https://mkt.techb.kr/ip"
 
 # 서버 외부 IP 동적으로 가져오기
-SERVER_IP=$(curl -s -m 3 http://techb.kr/ip.php 2>/dev/null | head -1)
+SERVER_IP=$(curl -s -m 3 https://mkt.techb.kr/ip 2>/dev/null | head -1)
 if [ -z "$SERVER_IP" ]; then
     # 실패시 메인 인터페이스 IP 사용
     SERVER_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7; exit}')

@@ -21,7 +21,7 @@ function getServerIP() {
     if (!serverIP) {
         try {
             // 1차: 외부 서비스로 확인
-            serverIP = execSync('curl -s -m 3 http://techb.kr/ip.php 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
+            serverIP = execSync('curl -s -m 3 https://mkt.techb.kr/ip 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
             if (!serverIP || !serverIP.match(/^\d+\.\d+\.\d+\.\d+$/)) {
                 // 2차: 메인 인터페이스 IP
                 serverIP = execSync('ip route get 8.8.8.8 2>/dev/null | awk \'{print $7; exit}\'', { encoding: 'utf8' }).trim();
@@ -85,7 +85,7 @@ function getProxyStatus() {
                 if (!proxyInfo.external_ip) {
                     try {
                         const ip = execSync(
-                            `timeout 2 curl --socks5 127.0.0.1:${portNum} -s http://techb.kr/ip.php 2>/dev/null | head -1`,
+                            `timeout 2 curl --socks5 127.0.0.1:${portNum} -s https://mkt.techb.kr/ip 2>/dev/null | head -1`,
                             { encoding: 'utf8' }
                         ).trim();
                         
