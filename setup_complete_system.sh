@@ -94,7 +94,8 @@ install_base_packages() {
         bind-utils \
         chrony \
         firewalld \
-        iproute
+        iproute \
+        bc
     
     # libusb 패키지 (이름이 다를 수 있음)
     dnf install -y libusb1-devel || dnf install -y libusbx-devel
