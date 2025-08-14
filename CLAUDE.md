@@ -4,58 +4,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This repository contains two main components:
-1. **Network Monitor System** - A monitoring and routing system for Huawei E8372h USB dongles on Rocky Linux 9.6
-2. **Flask Proxy Server** - A Flask-based proxy server for managing network toggles and traffic statistics
+This repository contains a unified USB dongle proxy management system:
+1. **Smart Toggle System** - Intelligent toggle with diagnosis-based recovery for Huawei E8372h USB dongles
+2. **SOCKS5 Proxy Server** - Transparent proxy service with automatic routing management  
+3. **Automated Network Setup** - Self-configuring network with persistent USB device mapping
 
 ## Commands
 
 ### Service Management
 ```bash
-# Start network monitoring services
-sudo systemctl start network-monitor
-sudo systemctl start network-monitor-health
-sudo systemctl start network-monitor-startup
+# Start dongle services
+sudo systemctl start dongle-toggle-api
+sudo systemctl start dongle-socks5
 
-# Check service status
-sudo systemctl status network-monitor
-sudo systemctl status network-monitor-health
+# Check service status  
+sudo systemctl status dongle-toggle-api
+sudo systemctl status dongle-socks5
 
 # Enable services on boot
-sudo systemctl enable network-monitor
-sudo systemctl enable network-monitor-health
-sudo systemctl enable network-monitor-startup
+sudo systemctl enable dongle-toggle-api
+sudo systemctl enable dongle-socks5
 ```
 
 ### Installation
 ```bash
-# Install network monitor
-cd /home/proxy/network-monitor
-sudo ./install.sh
-
-# For complete installation with all configurations
-sudo ./install-complete.sh
+# Complete system installation for Rocky Linux 9
+cd /home/proxy
+sudo bash setup_complete_system.sh
 ```
 
 ### Monitoring and Debugging
 ```bash
-# Check dongle status
-/home/proxy/network-monitor/tools/check_dongles.sh
+# Check all proxy connection status
+/home/proxy/scripts/utils/check_proxy_ips.sh
 
-# Debug network configuration
-/home/proxy/network-monitor/tools/debug_network.sh
+# Manual network setup (routing initialization)
+sudo /home/proxy/scripts/manual_setup.sh
 
-# Switch dongles from Mass Storage Mode
-sudo /home/proxy/network-monitor/tools/switch_dongles.sh
+# Individual dongle management
+/home/proxy/scripts/utils/dongle_manager.sh info
+/home/proxy/scripts/utils/dongle_manager.sh reset
 
-# Check health status API
+# Power control (individual or all dongles)
+sudo /home/proxy/scripts/power_control.sh status
+sudo /home/proxy/scripts/power_control.sh off 11
+sudo /home/proxy/scripts/power_control.sh on all
+
+# Check API status
 curl http://localhost:8080/status
 
 # View logs
-tail -f /home/proxy/network-monitor/logs/monitor.log
-tail -f /home/proxy/network-monitor/logs/startup.log
-tail -f /home/proxy/network-monitor/logs/recovery.log
-tail -f /home/proxy/network-monitor/logs/hotplug.log
+tail -f /home/proxy/logs/toggle_api.log
+tail -f /home/proxy/logs/socks5_proxy.log
+tail -f /home/proxy/logs/push_status.log
 ```
 
 ### Flask Server (if using pm2)
@@ -66,9 +67,36 @@ pm2 restart server
 pm2 logs server
 ```
 
+## Scripts 폴더 구조 (2025-01-15 정리 완료)
+
+### 자동화 핵심 파일
+- `smart_toggle.py`: 지능형 토글 시스템 (진단→단계별 복구)
+  - 0단계: 문제 진단 (인터페이스/라우팅/연결 상태)
+  - 1단계: 라우팅 재설정 (가장 빠른 복구)
+  - 2단계: 네트워크 토글 (모뎀 모드 전환)
+  - 3단계: USB unbind/bind (드라이버 재시작)
+  - 4단계: 전원 재시작 (uhubctl 포트 제어)
+- `toggle_api.js`: HTTP API 서버 (포트 8080, 스마트 토글 호출)
+- `socks5_proxy.py`: SOCKS5 프록시 서버 (포트 10011-10030)
+- `manual_setup.sh`: 시스템 시작 시 라우팅 초기 설정
+- `power_control.sh`: USB 동글 전원 제어 (개별/전체)
+- `usb_mapping.json`: USB 디바이스 매핑 정보 (허브/포트/경로)
+
+### 관리/진단 도구 (utils/)  
+- `check_proxy_ips.sh`: 모든 프록시 연결 상태 진단
+- `dongle_manager.sh`: 트래픽 리셋/APN 확인
+- `dongle_info.py`: 동글 정보 수집 API
+- `install_uhubctl.sh`: uhubctl 설치 스크립트
+
+### 중요 설정
+- **자동 연결**: systemd 서비스로 부팅 시 자동 시작
+- **안정적인 토글**: 4단계 진단 기반 복구 시스템
+- **동시 토글 제한**: 정상 3개, 복구 중 무제한
+- **USB 매핑 영구 저장**: lsusb에서 사라져도 복구 가능
+
 ## Architecture
 
-### Network Monitor System
+### Smart Toggle System
 The system consists of several interconnected components:
 
 1. **Core Scripts** (`/home/proxy/network-monitor/scripts/`)

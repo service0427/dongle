@@ -381,24 +381,6 @@ StandardError=append:$PROJECT_DIR/logs/socks5_proxy_error.log
 WantedBy=multi-user.target
 EOF
     
-    # 시작 시 네트워크 설정 서비스
-    log_info "시작 네트워크 설정 서비스 생성..."
-    cat > /etc/systemd/system/dongle-startup.service <<EOF
-[Unit]
-Description=Dongle Network Startup Configuration
-After=network.target NetworkManager.service
-
-[Service]
-Type=oneshot
-User=root
-ExecStart=$PROJECT_DIR/scripts/manual_setup.sh
-RemainAfterExit=yes
-StandardOutput=append:$PROJECT_DIR/logs/startup.log
-StandardError=append:$PROJECT_DIR/logs/startup_error.log
-
-[Install]
-WantedBy=multi-user.target
-EOF
     
     # systemd 리로드
     log_info "systemd 데몬 리로드..."
@@ -408,7 +390,6 @@ EOF
     log_info "서비스 활성화..."
     systemctl enable dongle-toggle-api.service
     systemctl enable dongle-socks5.service
-    systemctl enable dongle-startup.service
     
     log_info "systemd 서비스 생성 완료"
 }
@@ -508,7 +489,70 @@ EOF
     log_info "로그 관리 설정 완료"
 }
 
-# 12. 서비스 시작
+# 12. USB 매핑 초기화
+initialize_usb_mapping() {
+    log_section "USB 매핑 초기화"
+    
+    log_info "USB 디바이스 매핑 초기화 중..."
+    
+    # 매핑 파일이 없으면 기본값으로 생성
+    if [ ! -f "$PROJECT_DIR/scripts/usb_mapping.json" ]; then
+        log_info "USB 매핑 파일 생성..."
+        cat > "$PROJECT_DIR/scripts/usb_mapping.json" <<'MAPPING_EOF'
+{
+  "11": {"hub": "1-3.4", "port": 4, "interface": null, "usb_path": null, "mac": null, "last_seen": null},
+  "12": {"hub": "1-3.4", "port": 1, "interface": null, "usb_path": null, "mac": null, "last_seen": null},
+  "13": {"hub": "1-3.4", "port": 3, "interface": null, "usb_path": null, "mac": null, "last_seen": null},
+  "14": {"hub": "1-3.1", "port": 1, "interface": null, "usb_path": null, "mac": null, "last_seen": null},
+  "15": {"hub": "1-3.1", "port": 3, "interface": null, "usb_path": null, "mac": null, "last_seen": null},
+  "16": {"hub": "1-3.3", "port": 4, "interface": null, "usb_path": null, "mac": null, "last_seen": null},
+  "18": {"hub": "1-3.3", "port": 3, "interface": null, "usb_path": null, "mac": null, "last_seen": null}
+}
+MAPPING_EOF
+    fi
+    
+    # 현재 연결된 동글 정보로 매핑 업데이트
+    log_info "연결된 동글 정보 수집 중..."
+    for subnet in 11 12 13 14 15 16 18; do
+        interface=$(ip addr show | grep "192.168.$subnet.100" -B2 | head -1 | cut -d: -f2 | tr -d ' ' 2>/dev/null)
+        
+        if [ -n "$interface" ]; then
+            # USB 경로 찾기
+            usb_path=$(ls -la /sys/class/net/$interface/device/driver/ 2>/dev/null | grep $interface | awk '{print $9}' || echo "")
+            # MAC 주소
+            mac=$(cat /sys/class/net/$interface/address 2>/dev/null || echo "")
+            
+            if [ -n "$usb_path" ]; then
+                log_info "동글 $subnet 매핑: $interface -> $usb_path"
+                
+                # JSON 업데이트
+                python3 -c "
+import json
+try:
+    with open('$PROJECT_DIR/scripts/usb_mapping.json', 'r') as f:
+        mapping = json.load(f)
+    
+    if '$subnet' in mapping:
+        mapping['$subnet']['interface'] = '$interface'
+        mapping['$subnet']['usb_path'] = '$usb_path'
+        mapping['$subnet']['mac'] = '$mac'
+        mapping['$subnet']['last_seen'] = '$(date -Iseconds)'
+    
+    with open('$PROJECT_DIR/scripts/usb_mapping.json', 'w') as f:
+        json.dump(mapping, f, indent=2)
+        
+    print('Updated mapping for subnet $subnet')
+except Exception as e:
+    print(f'Error updating mapping: {e}')
+"
+            fi
+        fi
+    done
+    
+    log_info "USB 매핑 초기화 완료"
+}
+
+# 13. 서비스 시작
 start_services() {
     log_section "서비스 시작"
     
@@ -633,6 +677,7 @@ main() {
     setup_network
     setup_project_directories
     create_systemd_services
+    initialize_usb_mapping
     initialize_dongles
     setup_selinux
     setup_log_management

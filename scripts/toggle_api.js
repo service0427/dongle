@@ -108,9 +108,9 @@ function getProxyStatus() {
     return proxies;
 }
 
-// 토글 실행
+// 스마트 토글 실행
 function executeToggle(subnet, callback) {
-    const scriptPath = path.join(__dirname, 'toggle_dongle.py');
+    const scriptPath = path.join(__dirname, 'smart_toggle.py');
     const command = `python3 ${scriptPath} ${subnet}`;
     
     exec(command, { timeout: TOGGLE_TIMEOUT }, (error, stdout, stderr) => {
