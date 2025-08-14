@@ -56,16 +56,16 @@ function getProxyStatus() {
     const proxies = [];
     
     try {
-        // 실제 열려있는 포트만 확인
-        const openPorts = execSync(`netstat -tln 2>/dev/null | grep -E ":(100[1-3][0-9]) " | awk '{print $4}' | sed 's/.*://' | sort -u`, { encoding: 'utf8' })
+        // 실제 연결된 인터페이스 기반으로 확인
+        const subnets = execSync(`ip addr show | grep -oE "192.168.([1-3][0-9]).100" | cut -d. -f3 | sort -u`, { encoding: 'utf8' })
             .trim()
             .split('\n')
-            .filter(p => p);
+            .filter(s => s);
         
-        openPorts.forEach(port => {
-            const portNum = parseInt(port);
-            if (portNum >= 10011 && portNum <= 10030) {
-                const subnet = portNum - 10000;
+        subnets.forEach(subnetStr => {
+            const subnet = parseInt(subnetStr);
+            if (subnet >= 11 && subnet <= 30) {
+                const portNum = 10000 + subnet;
                 
                 let proxyInfo = {
                     proxy_url: `socks5://${getServerIP()}:${portNum}`,
