@@ -196,6 +196,196 @@ const server = http.createServer((req, res) => {
         return;
     }
     
+    // 동글 정보 API
+    if (pathname === '/dongle-info') {
+        exec('python3 ' + path.join(__dirname, 'dongle_info.py') + ' info', { timeout: 60000 }, (error, stdout, stderr) => {
+            if (error) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Failed to get dongle info', details: error.message }));
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(stdout);
+                res.writeHead(200);
+                res.end(JSON.stringify(data));
+            } catch (e) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Invalid response from dongle_info.py' }));
+            }
+        });
+        return;
+    }
+    
+    // 특정 동글 정보
+    if (pathname.startsWith('/dongle-info/')) {
+        const subnetStr = pathname.split('/')[2];
+        const subnets = subnetStr.split(',').map(s => s.trim()).filter(s => /^\d+$/.test(s));
+        
+        if (subnets.length === 0) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid subnet format' }));
+            return;
+        }
+        
+        exec('python3 ' + path.join(__dirname, 'dongle_info.py') + ' info ' + subnets.join(','), { timeout: 60000 }, (error, stdout, stderr) => {
+            if (error) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Failed to get dongle info', details: error.message }));
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(stdout);
+                res.writeHead(200);
+                res.end(JSON.stringify(data));
+            } catch (e) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Invalid response from dongle_info.py' }));
+            }
+        });
+        return;
+    }
+    
+    // 트래픽 리셋
+    if (pathname === '/reset-traffic') {
+        exec('python3 ' + path.join(__dirname, 'dongle_info.py') + ' reset', { timeout: 120000 }, (error, stdout, stderr) => {
+            if (error) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Failed to reset traffic', details: error.message }));
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(stdout);
+                res.writeHead(200);
+                res.end(JSON.stringify(data));
+            } catch (e) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Invalid response from dongle_info.py' }));
+            }
+        });
+        return;
+    }
+    
+    // 특정 동글 트래픽 리셋
+    if (pathname.startsWith('/reset-traffic/')) {
+        const subnetStr = pathname.split('/')[2];
+        const subnets = subnetStr.split(',').map(s => s.trim()).filter(s => /^\d+$/.test(s));
+        
+        if (subnets.length === 0) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'Invalid subnet format' }));
+            return;
+        }
+        
+        exec('python3 ' + path.join(__dirname, 'dongle_info.py') + ' reset ' + subnets.join(','), { timeout: 120000 }, (error, stdout, stderr) => {
+            if (error) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Failed to reset traffic', details: error.message }));
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(stdout);
+                res.writeHead(200);
+                res.end(JSON.stringify(data));
+            } catch (e) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Invalid response from dongle_info.py' }));
+            }
+        });
+        return;
+    }
+    
+    // APN 정보만
+    if (pathname === '/apn-info') {
+        exec('python3 ' + path.join(__dirname, 'dongle_info.py') + ' info', { timeout: 60000 }, (error, stdout, stderr) => {
+            if (error) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Failed to get APN info', details: error.message }));
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(stdout);
+                // APN 정보만 추출
+                const apnInfo = {
+                    timestamp: data.timestamp,
+                    dongles: {},
+                    summary: {
+                        total_requested: data.summary.total_requested,
+                        connected: data.summary.connected
+                    }
+                };
+                
+                Object.keys(data.dongles).forEach(subnet => {
+                    const dongle = data.dongles[subnet];
+                    if (dongle.status === 'connected' && dongle.apn) {
+                        apnInfo.dongles[subnet] = {
+                            subnet: dongle.subnet,
+                            ip: dongle.ip,
+                            status: dongle.status,
+                            apn: dongle.apn,
+                            network: dongle.network
+                        };
+                    }
+                });
+                
+                res.writeHead(200);
+                res.end(JSON.stringify(apnInfo));
+            } catch (e) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Invalid response from dongle_info.py' }));
+            }
+        });
+        return;
+    }
+    
+    // 트래픽 정보만
+    if (pathname === '/traffic-stats') {
+        exec('python3 ' + path.join(__dirname, 'dongle_info.py') + ' info', { timeout: 60000 }, (error, stdout, stderr) => {
+            if (error) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Failed to get traffic stats', details: error.message }));
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(stdout);
+                // 트래픽 정보만 추출
+                const trafficInfo = {
+                    timestamp: data.timestamp,
+                    dongles: {},
+                    summary: {
+                        total_requested: data.summary.total_requested,
+                        connected: data.summary.connected,
+                        total_traffic_gb: data.summary.total_traffic_gb
+                    }
+                };
+                
+                Object.keys(data.dongles).forEach(subnet => {
+                    const dongle = data.dongles[subnet];
+                    if (dongle.status === 'connected' && dongle.traffic) {
+                        trafficInfo.dongles[subnet] = {
+                            subnet: dongle.subnet,
+                            ip: dongle.ip,
+                            status: dongle.status,
+                            traffic: dongle.traffic
+                        };
+                    }
+                });
+                
+                res.writeHead(200);
+                res.end(JSON.stringify(trafficInfo));
+            } catch (e) {
+                res.writeHead(500);
+                res.end(JSON.stringify({ error: 'Invalid response from dongle_info.py' }));
+            }
+        });
+        return;
+    }
+    
     // 토글 처리
     const toggleMatch = pathname.match(/^\/toggle\/(\d+)$/);
     if (toggleMatch) {
