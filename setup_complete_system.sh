@@ -86,7 +86,6 @@ install_base_packages() {
     log_info "기본 패키지 설치 중..."
     dnf install -y \
         git gcc make \
-        libusb1-devel \
         usb_modeswitch usbutils \
         NetworkManager net-tools curl wget \
         iptables-services \
@@ -94,7 +93,11 @@ install_base_packages() {
         tar unzip nano vim htop tmux \
         bind-utils \
         chrony \
-        firewalld
+        firewalld \
+        iproute
+    
+    # libusb 패키지 (이름이 다를 수 있음)
+    dnf install -y libusb1-devel || dnf install -y libusbx-devel
     
     log_info "기본 패키지 설치 완료"
 }
@@ -173,6 +176,11 @@ install_python_packages() {
     python3 -m pip install --upgrade pip
     
     log_info "필수 Python 패키지 설치..."
+    /usr/local/bin/pip3 install \
+        aiohttp>=3.8.0 \
+        requests>=2.28.0 \
+        psutil>=5.9.0 \
+        huawei-lte-api>=1.6.0 || \
     python3 -m pip install \
         aiohttp>=3.8.0 \
         requests>=2.28.0 \
@@ -193,8 +201,9 @@ install_uhubctl() {
     fi
     
     log_info "uhubctl 소스 다운로드..."
-    cd /tmp
-    rm -rf uhubctl
+    TEMP_DIR="/tmp/uhubctl_build_$$"
+    mkdir -p "$TEMP_DIR"
+    cd "$TEMP_DIR"
     git clone https://github.com/mvp/uhubctl.git
     cd uhubctl
     
@@ -211,7 +220,9 @@ install_uhubctl() {
         udevadm control --reload-rules
     fi
     
+    # 임시 디렉토리 정리
     cd "$PROJECT_DIR"
+    rm -rf "$TEMP_DIR"
     
     log_info "uhubctl 설치 완료"
     uhubctl -v
@@ -235,6 +246,26 @@ EOF
     
     # 라우팅 테이블 추가
     log_info "라우팅 테이블 설정..."
+    
+    # rt_tables 파일이 없으면 생성
+    if [ ! -f /etc/iproute2/rt_tables ]; then
+        log_info "rt_tables 파일 생성..."
+        mkdir -p /etc/iproute2
+        cat > /etc/iproute2/rt_tables <<EOF
+#
+# reserved values
+#
+255	local
+254	main
+253	default
+0	unspec
+#
+# local
+#
+#1	inr.ruhep
+EOF
+    fi
+    
     if ! grep -q "dongle11" /etc/iproute2/rt_tables; then
         echo "" >> /etc/iproute2/rt_tables
         echo "# Dongle routing tables" >> /etc/iproute2/rt_tables
