@@ -82,25 +82,9 @@ function getProxyStatus() {
                     proxyInfo.traffic = state[subnet].traffic || state[subnet].traffic_mb || { upload: 0, download: 0 };
                 }
                 
-                // 외부 IP가 없거나 null이면 확인
-                if (!proxyInfo.external_ip) {
-                    try {
-                        const ip = execSync(
-                            `timeout 2 curl --socks5 127.0.0.1:${portNum} -s https://mkt.techb.kr/ip 2>/dev/null | head -1`,
-                            { encoding: 'utf8' }
-                        ).trim();
-                        
-                        if (ip && ip.match(/^\d+\.\d+\.\d+\.\d+$/)) {
-                            proxyInfo.external_ip = ip;
-                            if (!state[subnet]) state[subnet] = {};
-                            state[subnet].external_ip = ip;
-                            saveState(state);
-                        }
-                    } catch (e) {}
-                }
-                
-                // connected 상태 설정 (external_ip가 있으면 true)
-                proxyInfo.connected = proxyInfo.external_ip ? true : false;
+                // connected 상태 설정 (인터페이스가 존재하면 true)
+                // 이미 위에서 인터페이스 기반으로 subnets를 가져왔으므로, 여기 도달했다면 인터페이스가 존재함
+                proxyInfo.connected = true;
                 
                 proxies.push(proxyInfo);
             }
