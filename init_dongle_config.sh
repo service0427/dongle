@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# 동글 설정 초기화 스크립트
+# 동글 설정 초기화 스크립트 v1.1
 # 물리적으로 연결된 동글 정보를 수집하여 설정 파일에 저장
+# 각 서버별로 다른 USB 허브 구성을 자동으로 감지하여 저장
 
 CONFIG_DIR="/home/proxy/config"
 CONFIG_FILE="$CONFIG_DIR/dongle_config.json"
@@ -140,6 +141,12 @@ if [ "$PHYSICAL_COUNT" -ne "$LOGICAL_COUNT" ]; then
     echo -e "다음 명령으로 USB 허브를 리셋할 수 있습니다:"
     echo -e "  ${GREEN}sudo uhubctl -a cycle -l ${MAIN_HUB} -p 1,3,4${NC}"
 fi
+
+# 서버별 정보 표시
+echo -e "\n${YELLOW}=== 서버 정보 ===${NC}"
+echo -e "서버 IP: ${GREEN}$(hostname -I | awk '{print $1}')${NC}"
+echo -e "예상 동글 개수: ${GREEN}${EXPECTED_COUNT}개${NC}"
+echo -e "실제 물리적 동글: ${GREEN}${PHYSICAL_COUNT}개${NC}"
 
 echo -e "\n${GREEN}설정 초기화 완료!${NC}"
 echo -e "설정을 업데이트하려면: ${GREEN}$0 --update${NC}"
