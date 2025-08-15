@@ -145,8 +145,10 @@ fi
 # 서버별 정보 표시
 echo -e "\n${YELLOW}=== 서버 정보 ===${NC}"
 echo -e "서버 IP: ${GREEN}$(hostname -I | awk '{print $1}')${NC}"
-echo -e "예상 동글 개수: ${GREEN}${EXPECTED_COUNT}개${NC}"
+echo -e "예상 동글 개수: ${GREEN}${PHYSICAL_COUNT}개${NC} (현재 물리적 연결 기준)"
 echo -e "실제 물리적 동글: ${GREEN}${PHYSICAL_COUNT}개${NC}"
+echo -e "네트워크 인터페이스: ${GREEN}${INTERFACE_COUNT}개${NC}"
+echo -e "lsusb 인식: ${GREEN}${LOGICAL_COUNT}개${NC}"
 
 echo -e "\n${GREEN}설정 초기화 완료!${NC}"
 echo -e "설정을 업데이트하려면: ${GREEN}$0 --update${NC}"
