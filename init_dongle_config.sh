@@ -57,7 +57,8 @@ INTERFACE_COUNT=$(ip addr show | grep -c "192.168.[0-9][0-9].100")
 echo -e "활성 네트워크 인터페이스: ${GREEN}${INTERFACE_COUNT}개${NC}"
 
 # 5. lsusb로 인식된 동글 확인
-LOGICAL_COUNT=$(lsusb | grep -c "HUAWEI" || echo 0)
+LOGICAL_COUNT=$(lsusb | grep -c "HUAWEI" 2>/dev/null || echo 0)
+LOGICAL_COUNT=$(echo "$LOGICAL_COUNT" | tr -d '\n')  # 개행 문자 제거
 echo -e "lsusb로 인식된 동글: ${GREEN}${LOGICAL_COUNT}개${NC}"
 
 # 6. 상태 비교
