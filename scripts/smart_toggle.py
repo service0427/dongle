@@ -125,9 +125,24 @@ class SmartToggle:
     def restart_socks5(self):
         """긴급 복구: SOCKS5 서비스 재시작 (HTTP는 되는데 HTTPS 안 될 때)"""
         try:
-            # SOCKS5 서비스 재시작
-            result = subprocess.run("sudo systemctl restart dongle-socks5", 
-                                  shell=True, capture_output=True, text=True, timeout=10)
+            # 특정 포트만 재시작 시도
+            port = 10000 + self.subnet
+            
+            # 먼저 해당 포트의 프로세스 찾기
+            find_cmd = f"lsof -ti TCP:{port}"
+            result = subprocess.run(find_cmd, shell=True, capture_output=True, text=True, timeout=5)
+            
+            if result.stdout.strip():
+                # 특정 포트의 프로세스만 재시작
+                pid = result.stdout.strip().split()[0]
+                # 프로세스에 SIGUSR1 신호를 보내 특정 포트만 재시작하도록 요청
+                # (socks5_proxy.py가 이 기능을 지원하지 않으므로 전체 재시작)
+                result = subprocess.run("sudo systemctl restart dongle-socks5", 
+                                      shell=True, capture_output=True, text=True, timeout=10)
+            else:
+                # 포트가 열려있지 않으면 전체 서비스 재시작
+                result = subprocess.run("sudo systemctl restart dongle-socks5", 
+                                      shell=True, capture_output=True, text=True, timeout=10)
             
             if result.returncode == 0:
                 # 재시작 후 서비스 안정화 대기
@@ -166,8 +181,6 @@ class SmartToggle:
                 # 3초 대기 후 연결 테스트
                 time.sleep(3)
                 if self.test_connectivity():
-                    # 라우팅 문제 해결 후 SOCKS5 재시작
-                    subprocess.run("sudo systemctl restart dongle-socks5", shell=True, timeout=10)
                     return True
                 return False
             
@@ -300,8 +313,6 @@ class SmartToggle:
             for i in range(15):
                 time.sleep(1)
                 if self.test_connectivity():
-                    # USB 재설정 후 SOCKS5 재시작
-                    subprocess.run("sudo systemctl restart dongle-socks5", shell=True, timeout=10)
                     return True
             
             return False
@@ -332,8 +343,6 @@ class SmartToggle:
             for i in range(60):
                 time.sleep(1)
                 if self.test_connectivity():
-                    # 전원 재시작 후 SOCKS5 재시작
-                    subprocess.run("sudo systemctl restart dongle-socks5", shell=True, timeout=10)
                     return True
             
             return False

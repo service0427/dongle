@@ -71,7 +71,8 @@ function getProxyStatus() {
                     proxy_url: `socks5://${getServerIP()}:${portNum}`,
                     external_ip: null,
                     last_toggle: null,
-                    traffic: { upload: 0, download: 0 }
+                    traffic: { upload: 0, download: 0 },
+                    connected: false  // 기본값 false
                 };
                 
                 // 저장된 상태에서 정보 가져오기
@@ -97,6 +98,9 @@ function getProxyStatus() {
                         }
                     } catch (e) {}
                 }
+                
+                // connected 상태 설정 (external_ip가 있으면 true)
+                proxyInfo.connected = proxyInfo.external_ip ? true : false;
                 
                 proxies.push(proxyInfo);
             }

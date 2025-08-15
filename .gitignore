@@ -59,4 +59,4 @@ build/
 *.rpm
 *.deb
 *.tar.gz
-*.zip
+*.zip/uhubctl/
