@@ -50,10 +50,54 @@ function saveState(state) {
     } catch (e) {}
 }
 
+// 동글 설정 파일 읽기
+function loadDongleConfig() {
+    const configFile = '/home/proxy/config/dongle_config.json';
+    try {
+        if (fs.existsSync(configFile)) {
+            const data = fs.readFileSync(configFile, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (e) {
+        console.error('Error loading dongle config:', e);
+    }
+    return null;
+}
+
+// 동글 상태 분석
+function analyzeDongleStatus() {
+    const config = loadDongleConfig();
+    if (!config) {
+        return null;
+    }
+    
+    try {
+        // 현재 인터페이스 개수
+        const currentInterfaces = execSync(`ip addr show | grep -c "192.168.[1-3][0-9].100"`, { encoding: 'utf8' }).trim();
+        const interfaceCount = parseInt(currentInterfaces) || 0;
+        
+        // 현재 lsusb 개수
+        const currentLsusb = execSync(`lsusb 2>/dev/null | grep -ci "huawei" || echo "0"`, { encoding: 'utf8' }).trim();
+        const lsusbCount = parseInt(currentLsusb) || 0;
+        
+        return {
+            expected: config.expected_count || 0,
+            current_interfaces: interfaceCount,
+            current_lsusb: lsusbCount,
+            initial_lsusb: config.status?.lsusb_count || 0,
+            hub_info: config.hub_info || {}
+        };
+    } catch (e) {
+        console.error('Error analyzing dongle status:', e);
+        return null;
+    }
+}
+
 // 프록시 상태 가져오기
 function getProxyStatus() {
     const state = loadState();
     const proxies = [];
+    const dongleStatus = analyzeDongleStatus();
     
     try {
         // 실제 연결된 인터페이스 기반으로 확인
@@ -93,7 +137,7 @@ function getProxyStatus() {
         console.error('Error getting proxy status:', e);
     }
     
-    return proxies;
+    return { proxies, dongleStatus };
 }
 
 // 스마트 토글 실행
@@ -163,7 +207,7 @@ const server = http.createServer((req, res) => {
     
     // 프록시 상태
     if (pathname === '/status') {
-        const proxies = getProxyStatus();
+        const result = getProxyStatus();
         // 시스템이 이미 KST이므로 직접 포맷
         const now = new Date();
         const year = now.getFullYear();
@@ -174,13 +218,26 @@ const server = http.createServer((req, res) => {
         const seconds = String(now.getSeconds()).padStart(2, '0');
         const timestamp = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         
-        res.writeHead(200);
-        res.end(JSON.stringify({
+        const response = {
             status: 'ready',
             api_version: 'v1-enhanced',
             timestamp: timestamp,
-            available_proxies: proxies
-        }));
+            available_proxies: result.proxies
+        };
+        
+        // 동글 설정이 있으면 상태 정보 추가
+        if (result.dongleStatus) {
+            response.dongle_status = {
+                expected: result.dongleStatus.expected,
+                current_interfaces: result.dongleStatus.current_interfaces,
+                current_lsusb: result.dongleStatus.current_lsusb,
+                initial_lsusb: result.dongleStatus.initial_lsusb,
+                all_connected: result.dongleStatus.current_interfaces === result.dongleStatus.expected
+            };
+        }
+        
+        res.writeHead(200);
+        res.end(JSON.stringify(response));
         return;
     }
     
