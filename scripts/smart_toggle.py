@@ -487,6 +487,35 @@ class SmartToggle:
             # 실패시 기본값 유지
             self.result['traffic'] = {'upload': 0, 'download': 0}
     
+    def verify_socks5(self):
+        """SOCKS5 프록시 작동 확인"""
+        try:
+            port = 10000 + self.subnet
+            # SOCKS5를 통한 HTTPS 연결 테스트
+            result = subprocess.run(
+                f"curl --socks5 127.0.0.1:{port} -s -m 3 https://mkt.techb.kr/ip",
+                shell=True, capture_output=True, text=True, timeout=5
+            )
+            ip = result.stdout.strip()
+            
+            if ip and ip.split('.')[0].isdigit():
+                return True
+            
+            # SOCKS5가 작동하지 않으면 재시작
+            subprocess.run("sudo systemctl restart dongle-socks5", shell=True, timeout=10)
+            time.sleep(3)
+            
+            # 재시도
+            result = subprocess.run(
+                f"curl --socks5 127.0.0.1:{port} -s -m 3 https://mkt.techb.kr/ip",
+                shell=True, capture_output=True, text=True, timeout=5
+            )
+            ip = result.stdout.strip()
+            
+            return ip and ip.split('.')[0].isdigit()
+        except:
+            return False
+    
     def execute(self):
         """스마트 토글 실행"""
         try:
@@ -497,11 +526,13 @@ class SmartToggle:
             if diagnosis.get('socks5_issue'):
                 # HTTP는 되는데 HTTPS 안 되는 경우 - SOCKS5 재시작만으로 해결
                 if self.restart_socks5():
-                    self.result['success'] = True
-                    self.result['step'] = 0  # 간단한 재시작으로 해결
-                    # 트래픽 정보 수집
-                    self.get_traffic_info()
-                    return self.result
+                    # SOCKS5 검증 추가
+                    if self.verify_socks5():
+                        self.result['success'] = True
+                        self.result['step'] = 0  # 간단한 재시작으로 해결
+                        # 트래픽 정보 수집
+                        self.get_traffic_info()
+                        return self.result
             
             # 진단 결과에 따른 시작 단계 결정
             is_normal = False
@@ -532,13 +563,18 @@ class SmartToggle:
                     success = method()
                     
                     if success:
-                        self.result['success'] = True
-                        # step 번호 설정: 정상 상태에서 토글만 했으면 0, 아니면 해당 단계 번호
-                        if is_normal and step == 2:
-                            self.result['step'] = 0
+                        # SOCKS5 검증 추가
+                        if self.verify_socks5():
+                            self.result['success'] = True
+                            # step 번호 설정: 정상 상태에서 토글만 했으면 0, 아니면 해당 단계 번호
+                            if is_normal and step == 2:
+                                self.result['step'] = 0
+                            else:
+                                self.result['step'] = step
+                            break
                         else:
+                            # SOCKS5 검증 실패 시 다음 단계로
                             self.result['step'] = step
-                        break
                     else:
                         # 실패했으면 마지막 시도한 단계 저장
                         self.result['step'] = step
