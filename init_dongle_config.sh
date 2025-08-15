@@ -116,7 +116,33 @@ for hub in $SUB_HUBS; do
     fi
 done
 
-# 6. 최종 상태 확인
+# 6. 네트워크 인터페이스별 포트 매핑
+echo -e "\n${YELLOW}네트워크 인터페이스 매핑 중...${NC}"
+
+# 인터페이스 정보 수집
+INTERFACE_MAPPING=""
+ACTIVE_SUBNETS=$(ip addr show | grep -oE "192.168.([1-3][0-9]).100" | cut -d. -f3 | sort -u)
+
+for subnet in $ACTIVE_SUBNETS; do
+    interface=$(ip addr | grep "192.168.${subnet}.100" -B2 | head -1 | cut -d: -f2 | tr -d ' ')
+    socks_port=$((10000 + subnet))
+    
+    if [ ! -z "$INTERFACE_MAPPING" ]; then
+        INTERFACE_MAPPING="$INTERFACE_MAPPING,
+"
+    fi
+    
+    INTERFACE_MAPPING="$INTERFACE_MAPPING    \"${subnet}\": {
+      \"interface\": \"${interface}\",
+      \"ip\": \"192.168.${subnet}.100\",
+      \"gateway\": \"192.168.${subnet}.1\",
+      \"socks5_port\": ${socks_port}
+    }"
+    
+    echo -e "  동글${subnet}: ${GREEN}${interface}${NC} (192.168.${subnet}.100) → SOCKS5 포트 ${GREEN}${socks_port}${NC}"
+done
+
+# 7. 최종 상태 확인
 echo -e "\n${YELLOW}최종 상태:${NC}"
 INTERFACE_COUNT=$(ip addr show | grep -c "192.168.[0-9][0-9].100")
 echo -e "  예상 동글 개수 (lsusb): ${GREEN}${EXPECTED_COUNT}개${NC}"
@@ -130,7 +156,7 @@ else
     echo -e "  개별 동글 제어가 필요한 경우 수동으로 관리하세요"
 fi
 
-# 7. JSON 설정 파일 생성
+# 8. JSON 설정 파일 생성
 echo -e "\n${YELLOW}설정 파일 생성 중...${NC}"
 
 # 서브 허브 배열 생성
@@ -172,6 +198,9 @@ cat > "$CONFIG_FILE" << EOF
   "physical_dongles": {
 ${PHYSICAL_DONGLES_JSON}
   },
+  "interface_mapping": {
+${INTERFACE_MAPPING}
+  },
   "status": {
     "lsusb_count": ${EXPECTED_COUNT},
     "interface_count": ${INTERFACE_COUNT},
@@ -183,15 +212,23 @@ EOF
 
 echo -e "${GREEN}설정 파일이 생성되었습니다: ${CONFIG_FILE}${NC}"
 
-# 8. 설정 파일 내용 표시
+# 9. 설정 파일 내용 표시
 echo -e "\n${YELLOW}=== 설정 파일 내용 ===${NC}"
 cat "$CONFIG_FILE"
 
-# 9. 서버 정보 표시
+# 10. 서버 정보 표시
 echo -e "\n${YELLOW}=== 서버 정보 ===${NC}"
 echo -e "서버 IP: ${GREEN}$(hostname -I | awk '{print $1}')${NC}"
 echo -e "예상 동글 개수 (lsusb): ${GREEN}${EXPECTED_COUNT}개${NC}"
 echo -e "활성 네트워크 인터페이스: ${GREEN}${INTERFACE_COUNT}개${NC}"
 echo -e "uhubctl 감지 동글: ${GREEN}${PHYSICAL_COUNT}개${NC}"
+
+# 활성 프록시 정보 표시
+echo -e "\n${YELLOW}=== 활성 프록시 정보 ===${NC}"
+SERVER_IP=$(hostname -I | awk '{print $1}')
+for subnet in $ACTIVE_SUBNETS; do
+    socks_port=$((10000 + subnet))
+    echo -e "  ${GREEN}socks5://${SERVER_IP}:${socks_port}${NC} (동글${subnet})"
+done
 
 echo -e "\n${GREEN}=== 설정 초기화 완료! ===${NC}"
