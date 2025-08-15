@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 동글 설정 초기화 스크립트 v1.1
-# 물리적으로 연결된 동글 정보를 수집하여 설정 파일에 저장
+# 동글 설정 초기화 스크립트 v1.2
+# lsusb로 물리적 동글 확인 → 네트워크 인터페이스 비교 → 자동 복구
 # 각 서버별로 다른 USB 허브 구성을 자동으로 감지하여 저장
 
 CONFIG_DIR="/home/proxy/config"
@@ -11,6 +11,7 @@ CONFIG_FILE="$CONFIG_DIR/dongle_config.json"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # config 디렉토리 생성
@@ -18,26 +19,89 @@ mkdir -p "$CONFIG_DIR"
 
 echo -e "${GREEN}=== 동글 설정 초기화 시작 ===${NC}"
 
-# 1. uhubctl을 사용하여 물리적 동글 개수 확인
+# 1. lsusb로 물리적 동글 개수 확인 (최우선)
 echo -e "\n${YELLOW}물리적 동글 감지 중...${NC}"
-PHYSICAL_COUNT=$(sudo uhubctl | grep "HUAWEI_MOBILE" | wc -l)
-echo -e "물리적으로 연결된 동글: ${GREEN}${PHYSICAL_COUNT}개${NC}"
+if command -v lsusb >/dev/null 2>&1; then
+    EXPECTED_COUNT=$(lsusb 2>/dev/null | grep -ci "huawei" || echo "0")
+    EXPECTED_COUNT=$(echo "$EXPECTED_COUNT" | grep -oE '[0-9]+' | head -1)
+    if [ -z "$EXPECTED_COUNT" ]; then
+        EXPECTED_COUNT=0
+    fi
+else
+    echo -e "${RED}lsusb 명령을 찾을 수 없습니다${NC}"
+    exit 1
+fi
+echo -e "lsusb로 감지된 물리적 동글: ${GREEN}${EXPECTED_COUNT}개${NC}"
 
-# 2. 각 허브별 동글 정보 수집
+# 2. 현재 네트워크 인터페이스 확인
+echo -e "\n${YELLOW}네트워크 인터페이스 확인 중...${NC}"
+INTERFACE_COUNT=$(ip addr show | grep -c "192.168.[0-9][0-9].100")
+echo -e "활성 네트워크 인터페이스: ${GREEN}${INTERFACE_COUNT}개${NC}"
+
+# 3. 개수 비교 및 자동 복구
+if [ "$EXPECTED_COUNT" -gt 0 ] && [ "$INTERFACE_COUNT" -lt "$EXPECTED_COUNT" ]; then
+    echo -e "\n${RED}경고: 네트워크 인터페이스(${INTERFACE_COUNT})가 물리적 동글(${EXPECTED_COUNT})보다 적습니다${NC}"
+    echo -e "${YELLOW}USB 허브 재시작을 시도합니다...${NC}"
+    
+    # 메인 허브 찾기
+    MAIN_HUB=$(sudo uhubctl | grep "hub 1-" | grep -v "\." | grep -oE "1-[0-9]+" | head -1)
+    if [ -z "$MAIN_HUB" ]; then
+        MAIN_HUB="1-3"  # 기본값
+    fi
+    
+    # 서브 허브 찾기
+    SUB_HUBS=$(sudo uhubctl | grep "hub ${MAIN_HUB}\." | grep -oE "${MAIN_HUB}\.[0-9]+" | sort -u)
+    
+    # USB 허브 재시작
+    echo -e "${BLUE}허브 재시작 중: ${MAIN_HUB} (서브허브: $(echo $SUB_HUBS | tr '\n' ' '))${NC}"
+    
+    # 각 서브 허브를 순차적으로 재시작
+    for hub in $SUB_HUBS; do
+        echo -e "  ${hub} 재시작 중..."
+        sudo uhubctl -a cycle -l $hub -p 1,2,3,4 2>/dev/null
+        sleep 2
+    done
+    
+    # 네트워크 인터페이스가 올라올 때까지 대기 (최대 60초)
+    echo -e "\n${YELLOW}네트워크 인터페이스 복구 대기 중...${NC}"
+    MAX_WAIT=60
+    WAIT_COUNT=0
+    
+    while [ "$INTERFACE_COUNT" -lt "$EXPECTED_COUNT" ] && [ "$WAIT_COUNT" -lt "$MAX_WAIT" ]; do
+        sleep 2
+        INTERFACE_COUNT=$(ip addr show | grep -c "192.168.[0-9][0-9].100")
+        WAIT_COUNT=$((WAIT_COUNT + 2))
+        echo -ne "\r  진행상황: ${INTERFACE_COUNT}/${EXPECTED_COUNT} 인터페이스 활성화 (${WAIT_COUNT}초 경과)"
+    done
+    echo ""
+    
+    if [ "$INTERFACE_COUNT" -eq "$EXPECTED_COUNT" ]; then
+        echo -e "${GREEN}✓ 네트워크 인터페이스 복구 완료!${NC}"
+    else
+        echo -e "${YELLOW}⚠ 일부 인터페이스가 아직 활성화되지 않았습니다 (${INTERFACE_COUNT}/${EXPECTED_COUNT})${NC}"
+        echo -e "${YELLOW}  수동으로 확인이 필요할 수 있습니다${NC}"
+    fi
+fi
+
+# 4. 허브별 동글 정보 수집 (정보 수집용)
 echo -e "\n${YELLOW}허브별 동글 정보 수집 중...${NC}"
 
-# 메인 허브 찾기
+# 메인 허브 확인
 MAIN_HUB=$(sudo uhubctl | grep "hub 1-" | grep -v "\." | grep -oE "1-[0-9]+" | head -1)
 if [ -z "$MAIN_HUB" ]; then
     MAIN_HUB="1-3"  # 기본값
 fi
 echo -e "메인 허브: ${GREEN}${MAIN_HUB}${NC}"
 
-# 서브 허브 찾기
+# 서브 허브 확인
 SUB_HUBS=$(sudo uhubctl | grep "hub ${MAIN_HUB}\." | grep -oE "${MAIN_HUB}\.[0-9]+" | sort -u)
 echo -e "서브 허브: ${GREEN}$(echo $SUB_HUBS | tr '\n' ' ')${NC}"
 
-# 3. 각 허브의 동글 연결 포트 확인
+# 5. uhubctl로 실제 연결 상태 확인
+PHYSICAL_COUNT=$(sudo uhubctl | grep "HUAWEI_MOBILE" | wc -l)
+echo -e "uhubctl로 감지된 동글: ${GREEN}${PHYSICAL_COUNT}개${NC}"
+
+# 각 허브의 동글 연결 포트 확인
 declare -A HUB_PORTS
 
 for hub in $SUB_HUBS; do
@@ -52,29 +116,18 @@ for hub in $SUB_HUBS; do
     fi
 done
 
-# 4. 현재 네트워크 인터페이스 확인
-echo -e "\n${YELLOW}네트워크 인터페이스 확인 중...${NC}"
+# 6. 최종 상태 확인
+echo -e "\n${YELLOW}최종 상태:${NC}"
 INTERFACE_COUNT=$(ip addr show | grep -c "192.168.[0-9][0-9].100")
-echo -e "활성 네트워크 인터페이스: ${GREEN}${INTERFACE_COUNT}개${NC}"
+echo -e "  예상 동글 개수 (lsusb): ${GREEN}${EXPECTED_COUNT}개${NC}"
+echo -e "  활성 네트워크 인터페이스: ${GREEN}${INTERFACE_COUNT}개${NC}"
+echo -e "  uhubctl 감지 동글: ${GREEN}${PHYSICAL_COUNT}개${NC}"
 
-# 5. lsusb로 인식된 동글 확인
-LOGICAL_COUNT=$(lsusb | grep -c "HUAWEI" 2>/dev/null || echo 0)
-LOGICAL_COUNT=$(echo "$LOGICAL_COUNT" | tr -d '\n')  # 개행 문자 제거
-echo -e "lsusb로 인식된 동글: ${GREEN}${LOGICAL_COUNT}개${NC}"
-
-# 6. 상태 비교
-echo -e "\n${YELLOW}상태 분석:${NC}"
-if [ "$PHYSICAL_COUNT" -eq "$INTERFACE_COUNT" ]; then
-    echo -e "  ✓ 물리적 연결과 네트워크 인터페이스 ${GREEN}일치${NC}"
+if [ "$EXPECTED_COUNT" -eq "$INTERFACE_COUNT" ]; then
+    echo -e "\n${GREEN}✓ 초기 설정 완료! 모든 동글이 정상 작동 중입니다.${NC}"
 else
-    echo -e "  ✗ 물리적 연결($PHYSICAL_COUNT)과 네트워크 인터페이스($INTERFACE_COUNT) ${RED}불일치${NC}"
-fi
-
-if [ "$PHYSICAL_COUNT" -eq "$LOGICAL_COUNT" ]; then
-    echo -e "  ✓ 물리적 연결과 USB 인식 ${GREEN}일치${NC}"
-else
-    echo -e "  ✗ 물리적 연결($PHYSICAL_COUNT)과 USB 인식($LOGICAL_COUNT) ${RED}불일치${NC}"
-    echo -e "  ${YELLOW}→ USB 허브 리셋이 필요할 수 있습니다${NC}"
+    echo -e "\n${YELLOW}⚠ 일부 동글이 아직 활성화되지 않았습니다${NC}"
+    echo -e "  개별 동글 제어가 필요한 경우 수동으로 관리하세요"
 fi
 
 # 7. JSON 설정 파일 생성
@@ -107,10 +160,10 @@ for hub in $SUB_HUBS; do
     fi
 done
 
-# JSON 파일 생성
+# JSON 파일 생성 (expected_count를 lsusb 기준으로)
 cat > "$CONFIG_FILE" << EOF
 {
-  "expected_count": ${PHYSICAL_COUNT},
+  "expected_count": ${EXPECTED_COUNT},
   "hub_info": {
     "main_hub": "${MAIN_HUB}",
     "sub_hubs": [${SUB_HUB_JSON}],
@@ -120,9 +173,9 @@ cat > "$CONFIG_FILE" << EOF
 ${PHYSICAL_DONGLES_JSON}
   },
   "status": {
-    "physical_count": ${PHYSICAL_COUNT},
+    "lsusb_count": ${EXPECTED_COUNT},
     "interface_count": ${INTERFACE_COUNT},
-    "logical_count": ${LOGICAL_COUNT}
+    "uhubctl_count": ${PHYSICAL_COUNT}
   },
   "created_at": "$(date '+%Y-%m-%d %H:%M:%S')"
 }
@@ -134,26 +187,11 @@ echo -e "${GREEN}설정 파일이 생성되었습니다: ${CONFIG_FILE}${NC}"
 echo -e "\n${YELLOW}=== 설정 파일 내용 ===${NC}"
 cat "$CONFIG_FILE"
 
-# 9. 권장 사항
-echo -e "\n${YELLOW}=== 권장 사항 ===${NC}"
-if [ "$PHYSICAL_COUNT" -ne "$LOGICAL_COUNT" ]; then
-    echo -e "${RED}경고: USB 인식 문제가 있습니다.${NC}"
-    echo -e "다음 명령으로 USB 허브를 리셋할 수 있습니다:"
-    echo -e "  ${GREEN}sudo uhubctl -a cycle -l ${MAIN_HUB} -p 1,3,4${NC}"
-fi
-
-# 서버별 정보 표시
+# 9. 서버 정보 표시
 echo -e "\n${YELLOW}=== 서버 정보 ===${NC}"
 echo -e "서버 IP: ${GREEN}$(hostname -I | awk '{print $1}')${NC}"
-echo -e "예상 동글 개수: ${GREEN}${PHYSICAL_COUNT}개${NC} (현재 물리적 연결 기준)"
-echo -e "실제 물리적 동글: ${GREEN}${PHYSICAL_COUNT}개${NC}"
-echo -e "네트워크 인터페이스: ${GREEN}${INTERFACE_COUNT}개${NC}"
-echo -e "lsusb 인식: ${GREEN}${LOGICAL_COUNT}개${NC}"
+echo -e "예상 동글 개수 (lsusb): ${GREEN}${EXPECTED_COUNT}개${NC}"
+echo -e "활성 네트워크 인터페이스: ${GREEN}${INTERFACE_COUNT}개${NC}"
+echo -e "uhubctl 감지 동글: ${GREEN}${PHYSICAL_COUNT}개${NC}"
 
-echo -e "\n${GREEN}설정 초기화 완료!${NC}"
-echo -e "설정을 업데이트하려면: ${GREEN}$0 --update${NC}"
-
-# --update 옵션 처리
-if [ "$1" == "--update" ]; then
-    echo -e "\n${YELLOW}기존 설정을 현재 상태로 업데이트했습니다.${NC}"
-fi
+echo -e "\n${GREEN}=== 설정 초기화 완료! ===${NC}"
