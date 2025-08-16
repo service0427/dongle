@@ -39,23 +39,31 @@ class SmartToggle:
     
     def detect_routing_table(self):
         """라우팅 테이블 이름/번호 자동 감지"""
-        # 우선순위: 1) subnet 번호, 2) dongle이름, 3) 100+subnet
         import subprocess
         
-        # 1. subnet 번호 직접 사용 (현재 서버)
+        # 1. IP rule이 참조하는 테이블 우선 확인 (가장 중요!)
+        result = subprocess.run(
+            f"ip rule show | grep 'from 192.168.{self.subnet}.100' | awk '{{print $NF}}'",
+            shell=True, capture_output=True, text=True
+        )
+        rule_table = result.stdout.strip()
+        if rule_table:
+            return rule_table
+        
+        # 2. subnet 번호 직접 사용 (현재 서버)
         result = subprocess.run(f"ip route show table {self.subnet} 2>/dev/null | head -1",
                               shell=True, capture_output=True, text=True)
         if result.stdout.strip():
             return str(self.subnet)
         
-        # 2. dongle{subnet} 이름 사용
+        # 3. dongle{subnet} 이름 사용
         table_name = f"dongle{self.subnet}"
         result = subprocess.run(f"ip route show table {table_name} 2>/dev/null | head -1",
                               shell=True, capture_output=True, text=True)
         if result.stdout.strip():
             return table_name
         
-        # 3. 100+subnet 번호 사용
+        # 4. 100+subnet 번호 사용
         table_id = 100 + self.subnet
         result = subprocess.run(f"ip route show table {table_id} 2>/dev/null | head -1",
                               shell=True, capture_output=True, text=True)
@@ -262,6 +270,8 @@ class SmartToggle:
             for i in range(30):
                 time.sleep(1)
                 new_ip = self.get_current_ip()
+                
+                # IP를 가져왔고 변경되었으면 성공
                 if new_ip and new_ip != old_ip:
                     self.result['ip'] = new_ip
                     
@@ -277,10 +287,15 @@ class SmartToggle:
                         pass
                     
                     return True
+                
+                # 10초 후에도 연결 안되면 조기 종료
+                if i >= 10 and not new_ip:
+                    # 라우팅 문제일 가능성이 높음
+                    return False
             
             # 시간 초과 - 마지막 IP 확인
             final_ip = self.get_current_ip()
-            if final_ip:
+            if final_ip and final_ip != old_ip:
                 self.result['ip'] = final_ip
                 # 마지막으로 트래픽 시도
                 try:
