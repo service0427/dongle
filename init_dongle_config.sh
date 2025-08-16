@@ -361,6 +361,43 @@ done
 # 12. 허브 전체 재시작 스크립트 생성
 echo -e "\n${YELLOW}=== 허브 전체 재시작 스크립트 생성 중 ===${NC}"
 
+# 동글이 연결된 메인 허브 감지
+echo "동글이 연결된 메인 허브 감지 중..."
+MAIN_HUBS_WITH_DONGLES=""
+
+# 모든 메인 허브 찾기 (점이 없는 허브)
+ALL_MAIN_HUBS=$(sudo uhubctl | grep -E "hub [0-9]+-[0-9]+[^.]" | grep -v "hub [0-9]+-[0-9]+\." | grep -oE "[0-9]+-[0-9]+" | sort -u)
+
+for main_hub in $ALL_MAIN_HUBS; do
+    # 해당 메인 허브의 서브 허브들 확인
+    sub_hubs=$(sudo uhubctl | grep "hub ${main_hub}\." | grep -oE "${main_hub}\.[0-9]+" | sort -u)
+    has_dongles=false
+    
+    # 서브 허브에 동글이 있는지 확인
+    for sub_hub in $sub_hubs; do
+        if sudo uhubctl | grep -A4 "hub $sub_hub" | grep -q "HUAWEI_MOBILE"; then
+            has_dongles=true
+            break
+        fi
+    done
+    
+    # 메인 허브 자체에 직접 연결된 동글 확인
+    if sudo uhubctl | grep -A4 "hub $main_hub" | grep -q "HUAWEI_MOBILE"; then
+        has_dongles=true
+    fi
+    
+    if [ "$has_dongles" = true ]; then
+        if [ -z "$MAIN_HUBS_WITH_DONGLES" ]; then
+            MAIN_HUBS_WITH_DONGLES="$main_hub"
+        else
+            MAIN_HUBS_WITH_DONGLES="$MAIN_HUBS_WITH_DONGLES $main_hub"
+        fi
+        echo "  메인 허브 $main_hub 에 동글 발견"
+    fi
+done
+
+echo "동글이 연결된 메인 허브: $MAIN_HUBS_WITH_DONGLES"
+
 RESTART_SCRIPT="/home/proxy/scripts/restart_all_hubs.sh"
 
 cat > "$RESTART_SCRIPT" << 'HUBSCRIPT'
@@ -387,7 +424,7 @@ if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
 fi
 
 # 허브 정보
-MAIN_HUB="MAIN_HUB_PLACEHOLDER"
+MAIN_HUBS_WITH_DONGLES="MAIN_HUBS_PLACEHOLDER"
 SUB_HUBS=(SUB_HUBS_PLACEHOLDER)
 
 echo -e "\n${YELLOW}토글 API 서비스 중지...${NC}"
@@ -403,22 +440,21 @@ done
 
 echo -e "\n${YELLOW}USB 허브 재시작 중...${NC}"
 
-# 각 서브 허브 개별 재시작
-for hub in "${SUB_HUBS[@]}"; do
-    if [ ! -z "$hub" ]; then
-        echo -e "  ${hub} 재시작..."
-        # USB 2.0과 3.0 허브 모두 처리
-        sudo uhubctl -a cycle -l "$hub" -p 1,2,3,4 2>/dev/null || true
-        
-        # USB 3.0 허브가 있는 경우 (2-3.x 형식)
-        usb3_hub=$(echo "$hub" | sed 's/^1-/2-/')
-        if sudo uhubctl | grep -q "hub $usb3_hub"; then
-            echo -e "  ${usb3_hub} (USB 3.0) 재시작..."
-            sudo uhubctl -a cycle -l "$usb3_hub" -p 1,2,3,4 2>/dev/null || true
-        fi
-        
-        sleep 3  # 허브당 대기 시간 증가
+# 동글이 연결된 메인 허브만 재시작
+for main_hub in $MAIN_HUBS_WITH_DONGLES; do
+    echo -e "  ${GREEN}메인 허브 ${main_hub} 재시작...${NC}"
+    
+    # USB 2.0 메인 허브 재시작 (1-x 형식)
+    if [[ "$main_hub" =~ ^1- ]]; then
+        sudo uhubctl -a cycle -l "$main_hub" -p 1,2,3,4 2>/dev/null || true
     fi
+    
+    # USB 3.0 메인 허브 재시작 (2-x 형식)
+    if [[ "$main_hub" =~ ^2- ]]; then
+        sudo uhubctl -a cycle -l "$main_hub" -p 1,2,3,4 2>/dev/null || true
+    fi
+    
+    sleep 5  # 메인 허브 재시작 후 충분한 대기
 done
 
 # 재연결 대기
@@ -498,7 +534,7 @@ HUBSCRIPT
 
 # 플레이스홀더 교체
 sed -i "s/CREATED_TIME/$(date '+%Y-%m-%d %H:%M:%S')/" "$RESTART_SCRIPT"
-sed -i "s/MAIN_HUB_PLACEHOLDER/$MAIN_HUB/" "$RESTART_SCRIPT"
+sed -i "s/MAIN_HUBS_PLACEHOLDER/$MAIN_HUBS_WITH_DONGLES/" "$RESTART_SCRIPT"
 sed -i "s/SUB_HUBS_PLACEHOLDER/$(echo $SUB_HUBS | tr ' ' ' ')/" "$RESTART_SCRIPT"
 sed -i "s/EXPECTED_COUNT_PLACEHOLDER/$EXPECTED_COUNT/" "$RESTART_SCRIPT"
 
