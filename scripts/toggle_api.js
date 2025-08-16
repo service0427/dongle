@@ -72,20 +72,23 @@ function analyzeDongleStatus() {
     }
     
     try {
-        // 현재 인터페이스 개수 확인
-        const currentInterfaces = execSync(`ip addr show | grep -c "192.168.[1-3][0-9].100"`, { encoding: 'utf8' }).trim();
-        const interfaceCount = parseInt(currentInterfaces) || 0;
+        // 현재 활성 인터페이스 확인
+        const activeInterfaces = execSync(`ip addr show | grep -oE "192.168.([1-3][0-9]).100" | cut -d. -f3`, { encoding: 'utf8' })
+            .trim()
+            .split('\n')
+            .filter(s => s)
+            .map(s => parseInt(s));
         
-        // 현재 lsusb 개수 (빠르므로 실시간 체크)
-        const currentLsusb = execSync(`lsusb 2>/dev/null | grep -ci "huawei" || echo "0"`, { encoding: 'utf8' }).trim();
-        const lsusbCount = parseInt(currentLsusb) || 0;
+        // config에 정의된 동글 중 활성화된 개수
+        const configuredDongles = Object.keys(config.interface_mapping || {}).map(s => parseInt(s));
+        const activeCount = configuredDongles.filter(subnet => activeInterfaces.includes(subnet)).length;
         
         return {
             expected: config.expected_count || 0,
-            current_interfaces: interfaceCount,
-            current_lsusb: lsusbCount,
-            initial_lsusb: config.status?.lsusb_count || 0,
-            hub_info: config.hub_info || {}
+            configured: configuredDongles.length,
+            active: activeCount,
+            inactive: configuredDongles.length - activeCount,
+            all_connected: activeCount === configuredDongles.length
         };
     } catch (e) {
         console.error('Error analyzing dongle status:', e);
@@ -96,43 +99,57 @@ function analyzeDongleStatus() {
 // 프록시 상태 가져오기
 function getProxyStatus() {
     const state = loadState();
+    const config = loadDongleConfig();
     const proxies = [];
     const dongleStatus = analyzeDongleStatus();
     
+    // config 파일이 없으면 에러
+    if (!config || !config.interface_mapping) {
+        return { 
+            proxies: [], 
+            dongleStatus: null,
+            error: 'Configuration file not found or invalid. Run /home/proxy/init_dongle_config.sh first.'
+        };
+    }
+    
     try {
-        // 실제 연결된 인터페이스 기반으로 확인
-        const subnets = execSync(`ip addr show | grep -oE "192.168.([1-3][0-9]).100" | cut -d. -f3 | sort -u`, { encoding: 'utf8' })
+        // 현재 활성 인터페이스 확인
+        const activeSubnets = execSync(`ip addr show | grep -oE "192.168.([1-3][0-9]).100" | cut -d. -f3`, { encoding: 'utf8' })
             .trim()
             .split('\n')
-            .filter(s => s);
+            .filter(s => s)
+            .map(s => parseInt(s));
         
-        subnets.forEach(subnetStr => {
+        // config 파일의 interface_mapping을 기준으로 프록시 목록 생성
+        Object.keys(config.interface_mapping).forEach(subnetStr => {
             const subnet = parseInt(subnetStr);
-            if (subnet >= 11 && subnet <= 30) {
-                const portNum = 10000 + subnet;
-                
-                let proxyInfo = {
-                    proxy_url: `socks5://${getServerIP()}:${portNum}`,
-                    external_ip: null,
-                    last_toggle: null,
-                    traffic: { upload: 0, download: 0 },
-                    connected: false  // 기본값 false
-                };
-                
-                // 저장된 상태에서 정보 가져오기
-                if (state[subnet]) {
-                    proxyInfo.external_ip = state[subnet].external_ip || null;
-                    proxyInfo.last_toggle = state[subnet].last_toggle || null;
-                    proxyInfo.traffic = state[subnet].traffic || state[subnet].traffic_mb || { upload: 0, download: 0 };
-                }
-                
-                // connected 상태 설정 (인터페이스가 존재하면 true)
-                // 이미 위에서 인터페이스 기반으로 subnets를 가져왔으므로, 여기 도달했다면 인터페이스가 존재함
-                proxyInfo.connected = true;
-                
-                proxies.push(proxyInfo);
+            const mapping = config.interface_mapping[subnetStr];
+            
+            let proxyInfo = {
+                proxy_url: `socks5://${getServerIP()}:${mapping.socks5_port}`,
+                external_ip: null,
+                last_toggle: null,
+                traffic: { upload: 0, download: 0 },
+                connected: activeSubnets.includes(subnet)  // 실제 인터페이스 존재 여부
+            };
+            
+            // 저장된 상태에서 정보 가져오기
+            if (state[subnet]) {
+                proxyInfo.external_ip = state[subnet].external_ip || null;
+                proxyInfo.last_toggle = state[subnet].last_toggle || null;
+                proxyInfo.traffic = state[subnet].traffic || state[subnet].traffic_mb || { upload: 0, download: 0 };
             }
+            
+            proxies.push(proxyInfo);
         });
+        
+        // 서브넷 번호 순으로 정렬
+        proxies.sort((a, b) => {
+            const portA = parseInt(a.proxy_url.split(':').pop());
+            const portB = parseInt(b.proxy_url.split(':').pop());
+            return portA - portB;
+        });
+        
     } catch (e) {
         console.error('Error getting proxy status:', e);
     }
@@ -208,6 +225,17 @@ const server = http.createServer((req, res) => {
     // 프록시 상태
     if (pathname === '/status') {
         const result = getProxyStatus();
+        
+        // config 파일 에러 체크
+        if (result.error) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ 
+                status: 'error', 
+                error: result.error 
+            }));
+            return;
+        }
+        
         // 시스템이 이미 KST이므로 직접 포맷
         const now = new Date();
         const year = now.getFullYear();
@@ -220,20 +248,14 @@ const server = http.createServer((req, res) => {
         
         const response = {
             status: 'ready',
-            api_version: 'v1-enhanced',
+            api_version: 'v1-config-based',
             timestamp: timestamp,
             available_proxies: result.proxies
         };
         
         // 동글 설정이 있으면 상태 정보 추가
         if (result.dongleStatus) {
-            response.dongle_status = {
-                expected: result.dongleStatus.expected,
-                current_interfaces: result.dongleStatus.current_interfaces,
-                current_lsusb: result.dongleStatus.current_lsusb,
-                initial_lsusb: result.dongleStatus.initial_lsusb,
-                all_connected: result.dongleStatus.current_interfaces === result.dongleStatus.expected
-            };
+            response.dongle_status = result.dongleStatus;
         }
         
         res.writeHead(200);
