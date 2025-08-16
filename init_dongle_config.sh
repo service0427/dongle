@@ -124,6 +124,9 @@ INTERFACE_MAPPING=""
 PORT_MAPPING=""
 ACTIVE_SUBNETS=$(ip addr show | grep -oE "192.168.([1-3][0-9]).100" | cut -d. -f3 | sort -u)
 
+# 전역 변수로 사용된 포트 추적
+declare -A USED_PORTS
+
 # USB 포트 매핑 함수
 get_usb_port_for_subnet() {
     local subnet=$1
@@ -132,28 +135,24 @@ get_usb_port_for_subnet() {
     # 인터페이스 이름에서 USB 경로 추출 (예: enp0s21f0u3u4u1 → 3u4u1)
     local usb_path=$(echo "$interface" | grep -oE "u[0-9]+u[0-9]+(u[0-9]+)?" | tail -1)
     
-    # uhubctl 출력에서 해당 동글의 허브와 포트 찾기
+    # 기본 매핑 규칙 (인터페이스 이름 패턴 기반)
     local hub=""
     local port=""
     
-    # 각 서브허브를 확인
-    for sub_hub in $SUB_HUBS; do
-        local hub_ports=$(sudo uhubctl | grep -A10 "hub $sub_hub" | grep "HUAWEI_MOBILE" | grep -oE "Port [0-9]+" | grep -oE "[0-9]+")
-        for p in $hub_ports; do
-            # 해당 포트에 동글이 있는지 확인 (간단한 매핑)
-            if [ ! -z "$hub_ports" ]; then
-                if [ -z "$hub" ]; then
-                    hub="$sub_hub"
-                    port="$p"
-                    break
-                fi
-            fi
-        done
-    done
-    
-    # 기본값 설정 (찾지 못한 경우)
-    if [ -z "$hub" ]; then
-        # 서브넷 번호로 추정
+    # 인터페이스 이름 패턴으로 허브 구분
+    # enp0s21f0u3u4u* → hub 1-3.4
+    # enp0s21f0u3u1u* → hub 1-3.1
+    if [[ "$interface" =~ u3u4u([0-9]+) ]]; then
+        hub="1-3.4"
+        port="${BASH_REMATCH[1]}"
+    elif [[ "$interface" =~ u3u1u([0-9]+) ]]; then
+        hub="1-3.1"
+        port="${BASH_REMATCH[1]}"
+    elif [[ "$interface" =~ u3u3u([0-9]+) ]]; then
+        hub="1-3.3"
+        port="${BASH_REMATCH[1]}"
+    else
+        # 기본값: 서브넷 번호로 추정
         if [ "$subnet" -ge 11 ] && [ "$subnet" -le 14 ]; then
             hub="1-3.4"
             port=$((subnet - 10))
@@ -165,6 +164,22 @@ get_usb_port_for_subnet() {
             port=1
         fi
     fi
+    
+    # 이미 사용된 포트인지 확인
+    local key="${hub}:${port}"
+    if [ ! -z "${USED_PORTS[$key]}" ]; then
+        # 이미 사용된 경우 다음 사용 가능한 포트 찾기
+        for try_port in 1 2 3 4; do
+            key="${hub}:${try_port}"
+            if [ -z "${USED_PORTS[$key]}" ]; then
+                port=$try_port
+                break
+            fi
+        done
+    fi
+    
+    # 사용된 포트로 표시
+    USED_PORTS["${hub}:${port}"]=1
     
     echo "$hub:$port"
 }
