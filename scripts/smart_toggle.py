@@ -33,6 +33,37 @@ class SmartToggle:
         }
         self.start_time = time.time()
         self.diagnosis = {}  # 진단 정보는 내부용으로만 사용
+        
+        # 라우팅 테이블 이름 자동 감지
+        self.routing_table = self.detect_routing_table()
+    
+    def detect_routing_table(self):
+        """라우팅 테이블 이름/번호 자동 감지"""
+        # 우선순위: 1) subnet 번호, 2) dongle이름, 3) 100+subnet
+        import subprocess
+        
+        # 1. subnet 번호 직접 사용 (현재 서버)
+        result = subprocess.run(f"ip route show table {self.subnet} 2>/dev/null | head -1",
+                              shell=True, capture_output=True, text=True)
+        if result.stdout.strip():
+            return str(self.subnet)
+        
+        # 2. dongle{subnet} 이름 사용
+        table_name = f"dongle{self.subnet}"
+        result = subprocess.run(f"ip route show table {table_name} 2>/dev/null | head -1",
+                              shell=True, capture_output=True, text=True)
+        if result.stdout.strip():
+            return table_name
+        
+        # 3. 100+subnet 번호 사용
+        table_id = 100 + self.subnet
+        result = subprocess.run(f"ip route show table {table_id} 2>/dev/null | head -1",
+                              shell=True, capture_output=True, text=True)
+        if result.stdout.strip():
+            return str(table_id)
+        
+        # 기본값: subnet 번호 (새로 생성될 테이블용)
+        return str(self.subnet)
     
     def log_step(self, step, name, result, duration=None, details=None):
         """복구 단계 로깅 (디버깅용, 출력에는 포함 안됨)"""
@@ -53,12 +84,12 @@ class SmartToggle:
             diagnosis['interface'] = interface
             
             if interface:
-                # 라우팅 테이블 확인 (숫자로 직접 사용)
-                result = subprocess.run(f"ip route show table {self.subnet}", 
+                # 라우팅 테이블 확인 (자동 감지된 테이블 사용)
+                result = subprocess.run(f"ip route show table {self.routing_table}", 
                                       shell=True, capture_output=True, text=True, timeout=5)
                 diagnosis['routing_exists'] = "default" in result.stdout
                 
-                # IP rule 확인
+                # IP rule 확인 (어떤 테이블을 참조하든 존재 여부만 확인)
                 result = subprocess.run(f"ip rule show | grep 'from 192.168.{self.subnet}.100'",
                                       shell=True, capture_output=True, text=True, timeout=5)
                 diagnosis['ip_rule_exists'] = bool(result.stdout.strip())
@@ -162,16 +193,16 @@ class SmartToggle:
             
             success = True
             
-            # 라우팅 테이블 추가 (숫자로 직접 사용)
+            # 라우팅 테이블 추가 (자동 감지된 테이블 사용)
             if not self.diagnosis.get('routing_exists'):
-                cmd = f"ip route add default via 192.168.{self.subnet}.1 dev {interface} table {self.subnet}"
+                cmd = f"ip route add default via 192.168.{self.subnet}.1 dev {interface} table {self.routing_table}"
                 result = subprocess.run(f"sudo {cmd}", shell=True, capture_output=True, text=True, timeout=10)
                 if result.returncode != 0 and "File exists" not in result.stderr:
                     success = False
             
-            # IP rule 추가 (숫자로 직접 사용)
+            # IP rule 추가 (자동 감지된 테이블 사용)
             if not self.diagnosis.get('ip_rule_exists'):
-                cmd = f"ip rule add from 192.168.{self.subnet}.100 table {self.subnet}"
+                cmd = f"ip rule add from 192.168.{self.subnet}.100 table {self.routing_table}"
                 result = subprocess.run(f"sudo {cmd}", shell=True, capture_output=True, text=True, timeout=10)
                 if result.returncode != 0 and "File exists" not in result.stderr:
                     success = False
