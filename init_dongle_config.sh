@@ -366,7 +366,8 @@ echo "동글이 연결된 메인 허브 감지 중..."
 MAIN_HUBS_WITH_DONGLES=""
 
 # 모든 메인 허브 찾기 (점이 없는 허브)
-ALL_MAIN_HUBS=$(sudo uhubctl | grep -E "hub [0-9]+-[0-9]+[^.]" | grep -v "hub [0-9]+-[0-9]+\." | grep -oE "[0-9]+-[0-9]+" | sort -u)
+# "hub 1-3 " 같은 패턴을 찾되, "hub 1-3.1" 같은 서브 허브는 제외
+ALL_MAIN_HUBS=$(sudo uhubctl | awk '/Current status for hub [0-9]+-[0-9]+[^.]/ {match($0, /[0-9]+-[0-9]+/); print substr($0, RSTART, RLENGTH)}' | sort -u)
 
 for main_hub in $ALL_MAIN_HUBS; do
     # 해당 메인 허브의 서브 허브들 확인
