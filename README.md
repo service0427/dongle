@@ -31,11 +31,13 @@ sudo nmcli con up eno1
 
 ## 🚀 주요 기능
 
-- **SOCKS5 프록시 서버**: 각 동글별 독립적인 SOCKS5 프록시 제공
+- **개별 SOCKS5 프록시 서버**: 각 동글별 독립 서비스로 격리된 SOCKS5 프록시
+- **스마트 토글 시스템**: 4단계 지능형 복구 (라우팅→네트워크→USB→전원)
 - **자동 IP 토글**: 웹 API를 통한 동글 IP 변경 기능
 - **트래픽 통계**: 업로드/다운로드 통계 수집 및 모니터링
 - **동시성 제어**: 포트별 락 및 글로벌 동시 실행 제한
 - **상태 모니터링**: 실시간 프록시 상태 확인 및 허브 서버 연동
+- **자동 복구**: USB 허브 개별→전체 재시작 로직
 
 ## 🏗️ 시스템 아키텍처
 
@@ -70,11 +72,10 @@ sudo nmcli con up eno1
 ```bash
 # 리포지토리 클론
 git clone https://github.com/service0427/dongle.git
-cd dongle
+cd /home/proxy
 
-# 설치 실행
-chmod +x install.sh
-sudo ./install.sh
+# 초기 설정 실행 (필수)
+sudo ./init_dongle_config.sh
 ```
 
 ### 2. 서비스 시작
@@ -83,6 +84,9 @@ sudo ./install.sh
 # Toggle API 서버 시작
 sudo systemctl start dongle-toggle-api
 sudo systemctl enable dongle-toggle-api
+
+# 개별 SOCKS5 서비스 상태 확인
+/home/proxy/scripts/socks5/manage_socks5.sh status
 
 # 상태 확인
 sudo systemctl status dongle-toggle-api
@@ -110,9 +114,11 @@ curl http://112.161.54.7:8080/toggle/11
 
 ### 주요 설정 파일
 
+- `config/dongle_config.json` - 동글 구성 정보 (init_dongle_config.sh로 생성)
 - `scripts/toggle_api.js` - API 서버 설정
-- `scripts/socks5_proxy.py` - SOCKS5 프록시 설정
-- `scripts/push_proxy_status.sh` - 상태 전송 스크립트
+- `scripts/socks5/socks5_single.py` - 개별 SOCKS5 프록시
+- `scripts/socks5/manage_socks5.sh` - SOCKS5 관리 스크립트
+- `scripts/smart_toggle.py` - 스마트 토글 시스템
 
 ### 환경 변수
 
@@ -197,8 +203,9 @@ tail -f /home/proxy/backup_unnecessary/logs/push_status.log
 # API 서버 재시작
 sudo systemctl restart dongle-toggle-api
 
-# SOCKS5 프록시 재시작 (필요시)
-sudo pkill -f socks5_proxy.py
+# 개별 SOCKS5 서비스 재시작
+/home/proxy/scripts/socks5/manage_socks5.sh restart 11  # 특정 동글
+/home/proxy/scripts/socks5/manage_socks5.sh restart all # 전체
 ```
 
 ### 트러블슈팅
@@ -222,15 +229,18 @@ curl --socks5 127.0.0.1:10011 -s http://techb.kr/ip.php
 
 ```
 /home/proxy/
-├── scripts/                 # 핵심 스크립트
-│   ├── toggle_api.js       # Toggle API 서버
-│   ├── toggle_dongle.py    # 동글 토글 스크립트
-│   ├── socks5_proxy.py     # SOCKS5 프록시 서버
-│   └── push_proxy_status.sh # 상태 전송 스크립트
-├── config/                 # 설정 파일
-├── install.sh             # 설치 스크립트
-├── CLAUDE.md              # 프로젝트 가이드 (내부용)
-└── README.md              # 사용자 매뉴얼 (이 파일)
+├── scripts/                    # 핵심 스크립트
+│   ├── socks5/                # SOCKS5 관련
+│   │   ├── socks5_single.py  # 개별 프록시 서버
+│   │   └── manage_socks5.sh   # 관리 스크립트
+│   ├── toggle_api.js          # Toggle API 서버
+│   ├── smart_toggle.py        # 스마트 토글 시스템
+│   └── power_control.sh       # USB 전원 제어
+├── config/                    # 설정 파일
+│   └── dongle_config.json    # 동글 구성 정보
+├── init_dongle_config.sh      # 초기 설정 스크립트
+├── CLAUDE.md                  # 프로젝트 가이드 (내부용)
+└── README.md                  # 사용자 매뉴얼 (이 파일)
 ```
 
 ## 🔐 보안 고려사항

@@ -11,19 +11,28 @@ This repository contains a unified USB dongle proxy management system:
 
 ## Commands
 
+### Initial Setup (Required)
+```bash
+# Initialize dongle configuration
+cd /home/proxy
+sudo ./init_dongle_config.sh
+```
+
 ### Service Management
 ```bash
 # Start dongle services
 sudo systemctl start dongle-toggle-api
-sudo systemctl start dongle-socks5
 
 # Check service status  
 sudo systemctl status dongle-toggle-api
-sudo systemctl status dongle-socks5
+
+# Individual SOCKS5 services
+/home/proxy/scripts/socks5/manage_socks5.sh status
+/home/proxy/scripts/socks5/manage_socks5.sh restart 11  # Specific dongle
+/home/proxy/scripts/socks5/manage_socks5.sh restart all # All dongles
 
 # Enable services on boot
 sudo systemctl enable dongle-toggle-api
-sudo systemctl enable dongle-socks5
 ```
 
 ### Installation
@@ -67,7 +76,7 @@ pm2 restart server
 pm2 logs server
 ```
 
-## Scripts 폴더 구조 (2025-01-15 정리 완료)
+## Scripts 폴더 구조 (2025-08-16 업데이트)
 
 ### 자동화 핵심 파일
 - `smart_toggle.py`: 지능형 토글 시스템 (진단→단계별 복구)
@@ -75,9 +84,11 @@ pm2 logs server
   - 1단계: 라우팅 재설정 (가장 빠른 복구)
   - 2단계: 네트워크 토글 (모뎀 모드 전환)
   - 3단계: USB unbind/bind (드라이버 재시작)
-  - 4단계: 전원 재시작 (uhubctl 포트 제어)
-- `toggle_api.js`: HTTP API 서버 (포트 8080, 스마트 토글 호출)
-- `socks5_proxy.py`: SOCKS5 프록시 서버 (포트 10011-10030)
+  - 4단계: 전원 재시작 (개별→전체 허브 재시작)
+- `toggle_api.js`: HTTP API 서버 (포트 8080, config 기반 상태 관리)
+- `socks5/`: SOCKS5 프록시 관련
+  - `socks5_single.py`: 개별 포트용 독립 SOCKS5 서버
+  - `manage_socks5.sh`: SOCKS5 서비스 관리 (start/stop/restart/status)
 - `manual_setup.sh`: 시스템 시작 시 라우팅 초기 설정
 - `power_control.sh`: USB 동글 전원 제어 (개별/전체)
 - `usb_mapping.json`: USB 디바이스 매핑 정보 (허브/포트/경로)
@@ -89,10 +100,12 @@ pm2 logs server
 - `install_uhubctl.sh`: uhubctl 설치 스크립트
 
 ### 중요 설정
+- **초기 설정 필수**: `init_dongle_config.sh` 실행으로 동글 구성
+- **개별 SOCKS5 서비스**: 각 동글별 독립 systemd 서비스
 - **자동 연결**: systemd 서비스로 부팅 시 자동 시작
 - **안정적인 토글**: 4단계 진단 기반 복구 시스템
 - **동시 토글 제한**: 정상 3개, 복구 중 무제한
-- **USB 매핑 영구 저장**: lsusb에서 사라져도 복구 가능
+- **USB 매핑 영구 저장**: dongle_config.json에 허브/포트 매핑
 
 ## Architecture
 

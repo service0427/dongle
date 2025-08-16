@@ -135,13 +135,12 @@ class SmartToggle:
             if result.stdout.strip():
                 # 특정 포트의 프로세스만 재시작
                 pid = result.stdout.strip().split()[0]
-                # 프로세스에 SIGUSR1 신호를 보내 특정 포트만 재시작하도록 요청
-                # (socks5_proxy.py가 이 기능을 지원하지 않으므로 전체 재시작)
-                result = subprocess.run("sudo systemctl restart dongle-socks5", 
+                # 개별 서비스 재시작
+                result = subprocess.run(f"sudo systemctl restart dongle-socks5-{self.subnet}", 
                                       shell=True, capture_output=True, text=True, timeout=10)
             else:
-                # 포트가 열려있지 않으면 전체 서비스 재시작
-                result = subprocess.run("sudo systemctl restart dongle-socks5", 
+                # 포트가 열려있지 않으면 개별 서비스 재시작
+                result = subprocess.run(f"sudo systemctl restart dongle-socks5-{self.subnet}", 
                                       shell=True, capture_output=True, text=True, timeout=10)
             
             if result.returncode == 0:
@@ -322,28 +321,64 @@ class SmartToggle:
             return False
     
     def power_cycle(self):
-        """4단계: 전원 재시작"""
+        """4단계: 전원 재시작 (개별 시도 후 실패 시 전체 허브 재시작)"""
         try:
-            # power_control.sh 실행
+            # 1차 시도: 개별 포트 재시작
             result = subprocess.run(f"sudo /home/proxy/scripts/power_control.sh off {self.subnet}",
                                   shell=True, capture_output=True, text=True, timeout=10)
             
             if result.returncode != 0:
-                return False
+                # 개별 포트 제어 실패
+                self.log_step(4, 'power_cycle', 'individual_failed', 
+                            details={'message': 'Individual port control failed, trying full hub reset'})
+            else:
+                time.sleep(5)
+                
+                result = subprocess.run(f"sudo /home/proxy/scripts/power_control.sh on {self.subnet}",
+                                      shell=True, capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0:
+                    # 복구 대기 (최대 30초)
+                    for i in range(30):
+                        time.sleep(1)
+                        if self.test_connectivity():
+                            return True
             
-            time.sleep(5)
+            # 2차 시도: 전체 허브 재시작
+            self.log_step(4, 'power_cycle', 'trying_full_reset', 
+                        details={'message': 'Individual reset failed, attempting full hub reset'})
             
-            result = subprocess.run(f"sudo /home/proxy/scripts/power_control.sh on {self.subnet}",
-                                  shell=True, capture_output=True, text=True, timeout=10)
-            
-            if result.returncode != 0:
-                return False
-            
-            # 복구 대기 (최대 60초)
-            for i in range(60):
-                time.sleep(1)
-                if self.test_connectivity():
-                    return True
+            # dongle_config.json에서 허브 정보 가져오기
+            try:
+                with open('/home/proxy/config/dongle_config.json', 'r') as f:
+                    config = json.load(f)
+                    
+                if 'port_mapping' in config and str(self.subnet) in config['port_mapping']:
+                    hub = config['port_mapping'][str(self.subnet)]['hub']
+                else:
+                    # 기본값: 서브넷 번호로 추정
+                    if self.subnet >= 11 and self.subnet <= 14:
+                        hub = "1-3.4"
+                    elif self.subnet >= 15 and self.subnet <= 18:
+                        hub = "1-3.1"
+                    else:
+                        hub = "1-3.3"
+                
+                # 전체 허브 재시작
+                result = subprocess.run(f"sudo uhubctl -a cycle -l {hub} -p 1,2,3,4",
+                                      shell=True, capture_output=True, text=True, timeout=15)
+                
+                if result.returncode == 0:
+                    # 복구 대기 (최대 60초)
+                    time.sleep(10)  # 허브 재시작 대기
+                    for i in range(50):
+                        time.sleep(1)
+                        if self.test_connectivity():
+                            return True
+                            
+            except Exception as e:
+                self.log_step(4, 'power_cycle', 'hub_reset_failed', 
+                            details={'error': str(e)})
             
             return False
             
@@ -362,9 +397,9 @@ class SmartToggle:
             # HTTPS 실패시 HTTP 시도
             ip = self.test_connectivity_http()
             if ip:
-                # HTTP는 되는데 HTTPS 안 되면 SOCKS5 재시작
-                subprocess.run("sudo systemctl restart dongle-socks5", shell=True, timeout=10)
-                time.sleep(3)
+                # HTTP는 되는데 HTTPS 안 되면 개별 SOCKS5 재시작
+                subprocess.run(f"sudo systemctl restart dongle-socks5-{self.subnet}", shell=True, timeout=10)
+                time.sleep(2)
                 # 다시 HTTPS 시도
                 ip = self.test_connectivity_https()
                 if ip:
@@ -501,9 +536,9 @@ class SmartToggle:
             if ip and ip.split('.')[0].isdigit():
                 return True
             
-            # SOCKS5가 작동하지 않으면 재시작
-            subprocess.run("sudo systemctl restart dongle-socks5", shell=True, timeout=10)
-            time.sleep(3)
+            # SOCKS5가 작동하지 않으면 개별 서비스 재시작
+            subprocess.run(f"sudo systemctl restart dongle-socks5-{self.subnet}", shell=True, timeout=10)
+            time.sleep(2)
             
             # 재시도
             result = subprocess.run(

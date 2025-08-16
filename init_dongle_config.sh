@@ -116,19 +116,75 @@ for hub in $SUB_HUBS; do
     fi
 done
 
-# 6. 네트워크 인터페이스별 포트 매핑
+# 6. 네트워크 인터페이스별 포트 매핑 및 USB 포트 매핑
 echo -e "\n${YELLOW}네트워크 인터페이스 매핑 중...${NC}"
 
 # 인터페이스 정보 수집
 INTERFACE_MAPPING=""
+PORT_MAPPING=""
 ACTIVE_SUBNETS=$(ip addr show | grep -oE "192.168.([1-3][0-9]).100" | cut -d. -f3 | sort -u)
+
+# USB 포트 매핑 함수
+get_usb_port_for_subnet() {
+    local subnet=$1
+    local interface=$(ip addr | grep "192.168.${subnet}.100" -B2 | head -1 | cut -d: -f2 | tr -d ' ')
+    
+    # 인터페이스 이름에서 USB 경로 추출 (예: enp0s21f0u3u4u1 → 3u4u1)
+    local usb_path=$(echo "$interface" | grep -oE "u[0-9]+u[0-9]+(u[0-9]+)?" | tail -1)
+    
+    # uhubctl 출력에서 해당 동글의 허브와 포트 찾기
+    local hub=""
+    local port=""
+    
+    # 각 서브허브를 확인
+    for sub_hub in $SUB_HUBS; do
+        local hub_ports=$(sudo uhubctl | grep -A10 "hub $sub_hub" | grep "HUAWEI_MOBILE" | grep -oE "Port [0-9]+" | grep -oE "[0-9]+")
+        for p in $hub_ports; do
+            # 해당 포트에 동글이 있는지 확인 (간단한 매핑)
+            if [ ! -z "$hub_ports" ]; then
+                if [ -z "$hub" ]; then
+                    hub="$sub_hub"
+                    port="$p"
+                    break
+                fi
+            fi
+        done
+    done
+    
+    # 기본값 설정 (찾지 못한 경우)
+    if [ -z "$hub" ]; then
+        # 서브넷 번호로 추정
+        if [ "$subnet" -ge 11 ] && [ "$subnet" -le 14 ]; then
+            hub="1-3.4"
+            port=$((subnet - 10))
+        elif [ "$subnet" -ge 15 ] && [ "$subnet" -le 18 ]; then
+            hub="1-3.1"
+            port=$((subnet - 14))
+        else
+            hub="1-3.3"
+            port=1
+        fi
+    fi
+    
+    echo "$hub:$port"
+}
 
 for subnet in $ACTIVE_SUBNETS; do
     interface=$(ip addr | grep "192.168.${subnet}.100" -B2 | head -1 | cut -d: -f2 | tr -d ' ')
     socks_port=$((10000 + subnet))
     
+    # USB 포트 정보 가져오기
+    usb_info=$(get_usb_port_for_subnet $subnet)
+    hub=$(echo $usb_info | cut -d: -f1)
+    port=$(echo $usb_info | cut -d: -f2)
+    
     if [ ! -z "$INTERFACE_MAPPING" ]; then
         INTERFACE_MAPPING="$INTERFACE_MAPPING,
+"
+    fi
+    
+    if [ ! -z "$PORT_MAPPING" ]; then
+        PORT_MAPPING="$PORT_MAPPING,
 "
     fi
     
@@ -139,7 +195,12 @@ for subnet in $ACTIVE_SUBNETS; do
       \"socks5_port\": ${socks_port}
     }"
     
-    echo -e "  동글${subnet}: ${GREEN}${interface}${NC} (192.168.${subnet}.100) → SOCKS5 포트 ${GREEN}${socks_port}${NC}"
+    PORT_MAPPING="$PORT_MAPPING    \"${subnet}\": {
+      \"hub\": \"${hub}\",
+      \"port\": ${port}
+    }"
+    
+    echo -e "  동글${subnet}: ${GREEN}${interface}${NC} (192.168.${subnet}.100) → SOCKS5 포트 ${GREEN}${socks_port}${NC} [Hub: ${hub}, Port: ${port}]"
 done
 
 # 7. 최종 상태 확인
@@ -201,6 +262,9 @@ ${PHYSICAL_DONGLES_JSON}
   "interface_mapping": {
 ${INTERFACE_MAPPING}
   },
+  "port_mapping": {
+${PORT_MAPPING}
+  },
   "status": {
     "lsusb_count": ${EXPECTED_COUNT},
     "interface_count": ${INTERFACE_COUNT},
@@ -229,6 +293,54 @@ SERVER_IP=$(hostname -I | awk '{print $1}')
 for subnet in $ACTIVE_SUBNETS; do
     socks_port=$((10000 + subnet))
     echo -e "  ${GREEN}socks5://${SERVER_IP}:${socks_port}${NC} (동글${subnet})"
+done
+
+# 11. SOCKS5 개별 서비스 생성
+echo -e "\n${YELLOW}=== SOCKS5 개별 서비스 설정 중 ===${NC}"
+
+# 기존 통합 서비스 중지 및 비활성화
+if systemctl is-active --quiet dongle-socks5; then
+    echo -e "기존 통합 SOCKS5 서비스 중지..."
+    sudo systemctl stop dongle-socks5
+    sudo systemctl disable dongle-socks5 2>/dev/null
+fi
+
+# 개별 서비스 파일 생성
+for subnet in $ACTIVE_SUBNETS; do
+    SERVICE_FILE="/etc/systemd/system/dongle-socks5-${subnet}.service"
+    
+    echo -n "  동글${subnet} SOCKS5 서비스 생성... "
+    
+    cat > "$SERVICE_FILE" << EOF
+[Unit]
+Description=SOCKS5 Proxy for Dongle ${subnet}
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/proxy/scripts/socks5
+ExecStart=/usr/bin/python3 /home/proxy/scripts/socks5/socks5_single.py ${subnet}
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # 서비스 활성화 및 시작
+    sudo systemctl daemon-reload
+    sudo systemctl enable dongle-socks5-${subnet} 2>/dev/null
+    sudo systemctl restart dongle-socks5-${subnet}
+    
+    if systemctl is-active --quiet dongle-socks5-${subnet}; then
+        echo -e "${GREEN}✓${NC}"
+    else
+        echo -e "${RED}✗${NC}"
+    fi
 done
 
 echo -e "\n${GREEN}=== 설정 초기화 완료! ===${NC}"
