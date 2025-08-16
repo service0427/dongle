@@ -60,3 +60,4 @@ build/
 *.deb
 *.tar.gz
 *.zip/uhubctl/
+uhubctl/

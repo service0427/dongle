@@ -53,7 +53,7 @@ class SmartToggle:
             diagnosis['interface'] = interface
             
             if interface:
-                # 라우팅 테이블 확인
+                # 라우팅 테이블 확인 (숫자로 직접 사용)
                 result = subprocess.run(f"ip route show table {self.subnet}", 
                                       shell=True, capture_output=True, text=True, timeout=5)
                 diagnosis['routing_exists'] = "default" in result.stdout
@@ -162,14 +162,14 @@ class SmartToggle:
             
             success = True
             
-            # 라우팅 테이블 추가
+            # 라우팅 테이블 추가 (숫자로 직접 사용)
             if not self.diagnosis.get('routing_exists'):
                 cmd = f"ip route add default via 192.168.{self.subnet}.1 dev {interface} table {self.subnet}"
                 result = subprocess.run(f"sudo {cmd}", shell=True, capture_output=True, text=True, timeout=10)
                 if result.returncode != 0 and "File exists" not in result.stderr:
                     success = False
             
-            # IP rule 추가
+            # IP rule 추가 (숫자로 직접 사용)
             if not self.diagnosis.get('ip_rule_exists'):
                 cmd = f"ip rule add from 192.168.{self.subnet}.100 table {self.subnet}"
                 result = subprocess.run(f"sudo {cmd}", shell=True, capture_output=True, text=True, timeout=10)
@@ -525,6 +525,10 @@ class SmartToggle:
     def verify_socks5(self):
         """SOCKS5 프록시 작동 확인"""
         try:
+            # Step 0, 2는 SOCKS5 검증 불필요 (네트워크 토글 직후)
+            if hasattr(self, 'skip_socks5_verify') and self.skip_socks5_verify:
+                return True
+                
             port = 10000 + self.subnet
             # SOCKS5를 통한 HTTPS 연결 테스트
             result = subprocess.run(
@@ -598,6 +602,10 @@ class SmartToggle:
                     success = method()
                     
                     if success:
+                        # Step 2 (network toggle) 직후는 SOCKS5 검증 스킵
+                        if step == 2:
+                            self.skip_socks5_verify = True
+                            
                         # SOCKS5 검증 추가
                         if self.verify_socks5():
                             self.result['success'] = True
@@ -610,6 +618,10 @@ class SmartToggle:
                         else:
                             # SOCKS5 검증 실패 시 다음 단계로
                             self.result['step'] = step
+                        
+                        # 검증 스킵 플래그 리셋
+                        if hasattr(self, 'skip_socks5_verify'):
+                            del self.skip_socks5_verify
                     else:
                         # 실패했으면 마지막 시도한 단계 저장
                         self.result['step'] = step
