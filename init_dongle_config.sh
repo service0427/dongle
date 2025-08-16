@@ -403,12 +403,21 @@ done
 
 echo -e "\n${YELLOW}USB 허브 재시작 중...${NC}"
 
-# 각 서브 허브 재시작
+# 각 서브 허브 개별 재시작
 for hub in "${SUB_HUBS[@]}"; do
     if [ ! -z "$hub" ]; then
         echo -e "  ${hub} 재시작..."
-        sudo uhubctl -a cycle -l "$hub" -p 1,2,3,4 2>/dev/null
-        sleep 2
+        # USB 2.0과 3.0 허브 모두 처리
+        sudo uhubctl -a cycle -l "$hub" -p 1,2,3,4 2>/dev/null || true
+        
+        # USB 3.0 허브가 있는 경우 (2-3.x 형식)
+        usb3_hub=$(echo "$hub" | sed 's/^1-/2-/')
+        if sudo uhubctl | grep -q "hub $usb3_hub"; then
+            echo -e "  ${usb3_hub} (USB 3.0) 재시작..."
+            sudo uhubctl -a cycle -l "$usb3_hub" -p 1,2,3,4 2>/dev/null || true
+        fi
+        
+        sleep 3  # 허브당 대기 시간 증가
     fi
 done
 
@@ -437,7 +446,27 @@ fi
 
 # 네트워크 인터페이스 대기
 echo -e "\n${YELLOW}네트워크 인터페이스 활성화 대기 중...${NC}"
-sleep 5
+
+# DHCP 재요청으로 인터페이스 활성화
+for i in {1..30}; do
+    CURRENT_IF_COUNT=$(ip addr show | grep -c "192.168.[1-3][0-9].100")
+    echo -ne "\r  인터페이스 활성화: ${CURRENT_IF_COUNT}/${EXPECTED_COUNT} ($((i*2))초 경과)"
+    
+    if [ "$CURRENT_IF_COUNT" -ge "$EXPECTED_COUNT" ]; then
+        echo -e "\n${GREEN}✓ 모든 인터페이스 활성화됨${NC}"
+        break
+    fi
+    
+    # 인터페이스가 없는 동글에 DHCP 재요청
+    for device in $(ls /sys/class/net/ | grep -E "^e"); do
+        if ! ip addr show $device | grep -q "192.168"; then
+            dhclient -r $device 2>/dev/null
+            dhclient $device 2>/dev/null &
+        fi
+    done
+    
+    sleep 2
+done
 
 # 라우팅 재설정
 echo -e "\n${YELLOW}라우팅 재설정 중...${NC}"
