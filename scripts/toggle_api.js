@@ -72,15 +72,18 @@ function analyzeDongleStatus() {
     }
     
     try {
-        // 현재 인터페이스 개수만 확인 (빠름)
+        // 현재 인터페이스 개수 확인
         const currentInterfaces = execSync(`ip addr show | grep -c "192.168.[1-3][0-9].100"`, { encoding: 'utf8' }).trim();
         const interfaceCount = parseInt(currentInterfaces) || 0;
         
-        // lsusb는 초기 설정값 사용 (실시간 체크 안함 - 너무 느림)
+        // 현재 lsusb 개수 (빠르므로 실시간 체크)
+        const currentLsusb = execSync(`lsusb 2>/dev/null | grep -ci "huawei" || echo "0"`, { encoding: 'utf8' }).trim();
+        const lsusbCount = parseInt(currentLsusb) || 0;
+        
         return {
             expected: config.expected_count || 0,
             current_interfaces: interfaceCount,
-            current_lsusb: config.status?.lsusb_count || 0,  // 초기값 사용
+            current_lsusb: lsusbCount,
             initial_lsusb: config.status?.lsusb_count || 0,
             hub_info: config.hub_info || {}
         };
