@@ -4,6 +4,12 @@
 # 최소한의 안정적인 기능만 설치
 #
 
+# 색상 정의
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
 echo "========================================="
 echo "    동글 프록시 시스템 v1 설치"
 echo "========================================="
@@ -42,23 +48,7 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 
-# SOCKS5 프록시 서비스
-cat > /etc/systemd/system/dongle-socks5.service <<EOF
-[Unit]
-Description=SOCKS5 Proxy Server
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/home/proxy/scripts
-ExecStart=/usr/bin/python3 /home/proxy/scripts/socks5_proxy.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
+# SOCKS5 서비스는 init_dongle_config.sh에서 개별 생성됨
 
 # 3. 스크립트 실행 권한 설정
 echo "3. 실행 권한 설정..."
@@ -83,28 +73,42 @@ crontab "${CRON_TEMP}.new"
 rm -f "$CRON_TEMP" "${CRON_TEMP}.new"
 echo "   상태 푸시 크론 등록 완료 (1분마다 mkt.techb.kr로 전송)"
 
+# 6. dongle_config.json 확인 및 초기 설정 안내
+echo "6. 초기 설정 확인..."
+if [ ! -f "/home/proxy/config/dongle_config.json" ]; then
+    echo ""
+    echo -e "${RED}========================================="
+    echo "    ⚠️  초기 설정 필요"
+    echo "=========================================${NC}"
+    echo ""
+    echo "1. 모든 USB 동글을 연결하세요"
+    echo "2. 동글 연결 확인: lsusb | grep -i huawei"
+    echo "3. 초기 설정 실행:"
+    echo -e "   ${GREEN}sudo /home/proxy/init_dongle_config.sh${NC}"
+    echo ""
+    echo "이 명령은 한 번만 실행하면 됩니다."
+    echo "========================================="
+else
+    echo "   dongle_config.json 파일 발견 - 초기 설정 완료"
+fi
+
 echo ""
 echo "========================================="
 echo "설치 완료!"
 echo ""
 echo "사용법:"
-echo "  1. 동글 연결 후 초기 설정:"
-echo "     sudo /home/proxy/scripts/manual_setup.sh"
-echo ""
-echo "  2. 서비스 시작:"
+echo "  1. 서비스 시작:"
 echo "     sudo systemctl start dongle-toggle-api"
-echo "     sudo systemctl start dongle-socks5"
 echo ""
-echo "  3. 서비스 자동 시작 설정:"
+echo "  2. 서비스 자동 시작 설정:"
 echo "     sudo systemctl enable dongle-toggle-api"
-echo "     sudo systemctl enable dongle-socks5"
 echo ""
-echo "  4. 토글 API:"
+echo "  3. 토글 API:"
 echo "     curl http://localhost:8080/toggle/11"
 echo ""
-echo "  5. SOCKS5 프록시:"
-echo "     포트 10011-10030 (동글 번호에 따라)"
+echo "  4. SOCKS5 프록시:"
+echo "     포트 10011-10030 (개별 서비스)"
 echo ""
-echo "  6. 상태 푸시 로그 확인:"
-echo "     tail -f /home/proxy/logs/push_status.log"
+echo "  5. 상태 확인:"
+echo "     curl http://localhost:8080/status"
 echo "========================================="
