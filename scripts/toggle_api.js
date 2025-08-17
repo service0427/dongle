@@ -288,7 +288,6 @@ const server = http.createServer((req, res) => {
                     res.writeHead(500);
                     res.end(JSON.stringify({ 
                         error: 'Failed to restart SOCKS5 service',
-                        subnet: subnet,
                         was_active: isActive,
                         details: restartError.message
                     }));
@@ -309,7 +308,6 @@ const server = http.createServer((req, res) => {
                             
                             const response = {
                                 success: recovered && portOpen,
-                                subnet: subnet,
                                 port: port,
                                 service_status: {
                                     before: isActive ? 'active' : 'inactive',
