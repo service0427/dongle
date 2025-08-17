@@ -69,13 +69,27 @@ sudo nmcli con up eno1
 
 ### 1. 설치
 
+#### 방법 1: 기본 설치 (이미 의존성이 설치된 경우)
 ```bash
 # 리포지토리 클론
-git clone https://github.com/service0427/dongle.git
+git clone https://github.com/service0427/dongle.git /home/proxy
 cd /home/proxy
+
+# 기본 설치
+sudo ./install.sh
 
 # 초기 설정 실행 (필수)
 sudo ./init_dongle_config.sh
+```
+
+#### 방법 2: 전체 시스템 설치 (Rocky Linux 9 최소 설치에서)
+```bash
+# 리포지토리 클론
+git clone https://github.com/service0427/dongle.git /home/proxy
+cd /home/proxy
+
+# 전체 시스템 설치 (Node.js, Python, uhubctl 등 모든 의존성 포함)
+sudo bash setup_complete_system.sh
 ```
 
 ### 2. 서비스 시작

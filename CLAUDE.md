@@ -36,8 +36,17 @@ sudo systemctl enable dongle-toggle-api
 ```
 
 ### Installation
+
+#### Quick Install (dependencies already installed)
 ```bash
-# Complete system installation for Rocky Linux 9
+cd /home/proxy
+sudo ./install.sh
+sudo ./init_dongle_config.sh
+```
+
+#### Full System Install (Rocky Linux 9 minimal)
+```bash
+# Complete system installation including all dependencies
 cd /home/proxy
 sudo bash setup_complete_system.sh
 ```
