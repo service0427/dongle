@@ -113,6 +113,8 @@ sudo systemctl status dongle-toggle-api
 - **헬스체크**: `GET /health`
 - **프록시 상태**: `GET /status` 
 - **IP 토글**: `GET /toggle/{subnet}`
+- **SOCKS5 복구**: `GET /recover-socks5/{subnet}`
+- **SOCKS5 일괄 복구**: `POST /recover-socks5-batch`
 
 #### 프록시 사용
 
@@ -186,6 +188,49 @@ curl http://112.161.54.7/toggle/11
 {
   "error": "Toggle already in progress for subnet 11",
   "code": "TOGGLE_IN_PROGRESS"
+}
+```
+
+### GET /recover-socks5/{subnet}
+
+특정 SOCKS5 서비스 복구 (외부에서 오류 감지 시)
+
+**성공 응답**:
+```json
+{
+  "success": true,
+  "subnet": "12",
+  "port": 10012,
+  "service_status": {
+    "before": "inactive",
+    "after": "active"
+  },
+  "port_listening": true,
+  "timestamp": "2025-08-17T03:59:19.628Z"
+}
+```
+
+### POST /recover-socks5-batch
+
+여러 SOCKS5 서비스 일괄 복구
+
+**요청**:
+```json
+{
+  "subnets": [11, 12, 13]
+}
+```
+
+**응답**:
+```json
+{
+  "success": true,
+  "results": [
+    {"subnet": 11, "success": true},
+    {"subnet": 12, "success": true},
+    {"subnet": 13, "success": false, "error": "Service not found"}
+  ],
+  "timestamp": "2025-08-17T03:59:28.208Z"
 }
 ```
 

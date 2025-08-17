@@ -409,6 +409,135 @@ const server = http.createServer((req, res) => {
         return;
     }
     
+    // SOCKS5 일괄 복구 API (POST /recover-socks5-batch)
+    if (pathname === '/recover-socks5-batch' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body);
+                const subnets = data.subnets || [];
+                
+                if (!Array.isArray(subnets) || subnets.length === 0) {
+                    res.writeHead(400);
+                    res.end(JSON.stringify({ 
+                        error: 'Invalid request',
+                        message: 'subnets array required'
+                    }));
+                    return;
+                }
+                
+                console.log(`[${new Date().toISOString()}] Batch SOCKS5 recovery requested for subnets: ${subnets.join(', ')}`);
+                
+                const recoveryPromises = subnets.map(subnet => {
+                    return new Promise((resolve) => {
+                        exec(`sudo systemctl restart dongle-socks5-${subnet}`, { timeout: 10000 }, (error) => {
+                            if (error) {
+                                resolve({ subnet, success: false, error: error.message });
+                            } else {
+                                // 서비스 상태 확인
+                                setTimeout(() => {
+                                    exec(`systemctl is-active dongle-socks5-${subnet}`, { timeout: 5000 }, (checkError, stdout) => {
+                                        const isActive = stdout.trim() === 'active';
+                                        resolve({ subnet, success: isActive });
+                                    });
+                                }, 2000);
+                            }
+                        });
+                    });
+                });
+                
+                Promise.all(recoveryPromises).then(results => {
+                    const allSuccess = results.every(r => r.success);
+                    res.writeHead(allSuccess ? 200 : 207); // 207 Multi-Status
+                    res.end(JSON.stringify({
+                        success: allSuccess,
+                        results: results,
+                        timestamp: new Date().toISOString()
+                    }));
+                });
+                
+            } catch (e) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ 
+                    error: 'Invalid JSON',
+                    message: e.message
+                }));
+            }
+        });
+        return;
+    }
+    
+    // SOCKS5 복구 API (외부에서 문제 감지 시 사용)
+    if (pathname.startsWith('/recover-socks5/')) {
+        const subnet = pathname.split('/')[2];
+        
+        // 서브넷 유효성 검사
+        if (!subnet || isNaN(subnet) || subnet < 11 || subnet > 30) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ 
+                error: 'Invalid subnet',
+                message: 'Subnet must be between 11 and 30'
+            }));
+            return;
+        }
+        
+        console.log(`[${new Date().toISOString()}] SOCKS5 recovery requested for subnet ${subnet}`);
+        
+        // SOCKS5 서비스 상태 확인
+        exec(`systemctl is-active dongle-socks5-${subnet}`, { timeout: 5000 }, (error, stdout, stderr) => {
+            const isActive = stdout.trim() === 'active';
+            
+            // 서비스 재시작
+            exec(`sudo systemctl restart dongle-socks5-${subnet}`, { timeout: 10000 }, (restartError) => {
+                if (restartError) {
+                    res.writeHead(500);
+                    res.end(JSON.stringify({ 
+                        error: 'Failed to restart SOCKS5 service',
+                        subnet: subnet,
+                        was_active: isActive,
+                        details: restartError.message
+                    }));
+                    return;
+                }
+                
+                // 재시작 후 잠시 대기
+                setTimeout(() => {
+                    // 서비스 상태 재확인
+                    exec(`systemctl is-active dongle-socks5-${subnet}`, { timeout: 5000 }, (checkError, checkStdout) => {
+                        const newStatus = checkStdout.trim();
+                        const recovered = newStatus === 'active';
+                        
+                        // 포트 확인
+                        const port = 10000 + parseInt(subnet);
+                        exec(`ss -tuln | grep :${port}`, { timeout: 5000 }, (portError, portStdout) => {
+                            const portOpen = !!portStdout.trim();
+                            
+                            const response = {
+                                success: recovered && portOpen,
+                                subnet: subnet,
+                                port: port,
+                                service_status: {
+                                    before: isActive ? 'active' : 'inactive',
+                                    after: newStatus
+                                },
+                                port_listening: portOpen,
+                                timestamp: new Date().toISOString()
+                            };
+                            
+                            res.writeHead(recovered && portOpen ? 200 : 500);
+                            res.end(JSON.stringify(response));
+                        });
+                    });
+                }, 3000); // 3초 대기
+            });
+        });
+        return;
+    }
+    
     // 트래픽 정보만
     if (pathname === '/traffic-stats') {
         exec('python3 ' + path.join(__dirname, 'dongle_info.py') + ' info', { timeout: 60000 }, (error, stdout, stderr) => {
