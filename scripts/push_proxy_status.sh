@@ -33,7 +33,7 @@ if [ -z "$MAIN_IP" ]; then
 fi
 
 # 로컬 API에서 상태 가져오기
-PROXY_STATUS=$(curl -s http://localhost:8080/status)
+PROXY_STATUS=$(curl -s http://localhost/status)
 
 # 상태 확인 - API가 다운되었으면 재시작
 if [ -z "$PROXY_STATUS" ]; then
@@ -42,7 +42,7 @@ if [ -z "$PROXY_STATUS" ]; then
     sleep 2
     
     # 재시도
-    PROXY_STATUS=$(curl -s http://localhost:8080/status)
+    PROXY_STATUS=$(curl -s http://localhost/status)
     if [ -z "$PROXY_STATUS" ]; then
         log_message "ERROR: Failed to get proxy status after restart"
         exit 1

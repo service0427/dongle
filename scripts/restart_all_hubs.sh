@@ -126,4 +126,4 @@ echo -e "\n${YELLOW}토글 API 서비스 재시작...${NC}"
 sudo systemctl start dongle-toggle-api
 
 echo -e "\n${GREEN}=== 허브 재시작 완료! ===${NC}"
-echo -e "상태 확인: curl http://localhost:8080/status"
+echo -e "상태 확인: curl http://localhost/status"

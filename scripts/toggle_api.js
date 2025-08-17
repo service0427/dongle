@@ -9,7 +9,7 @@ const { exec, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const PORT = 8080;
+const PORT = 80;
 const TOGGLE_TIMEOUT = 30000; // 30초
 const STATE_FILE = '/home/proxy/proxy_state.json';
 const MAX_CONCURRENT_TOGGLES = 3; // 최대 동시 토글 수

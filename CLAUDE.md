@@ -60,7 +60,7 @@ sudo /home/proxy/scripts/power_control.sh off 11
 sudo /home/proxy/scripts/power_control.sh on all
 
 # Check API status
-curl http://localhost:8080/status
+curl http://localhost/status
 
 # View logs
 tail -f /home/proxy/logs/toggle_api.log
@@ -85,7 +85,7 @@ pm2 logs server
   - 2단계: 네트워크 토글 (모뎀 모드 전환)
   - 3단계: USB unbind/bind (드라이버 재시작)
   - 4단계: 전원 재시작 (개별→전체 허브 재시작)
-- `toggle_api.js`: HTTP API 서버 (포트 8080, config 기반 상태 관리)
+- `toggle_api.js`: HTTP API 서버 (포트 80, config 기반 상태 관리)
 - `socks5/`: SOCKS5 프록시 관련
   - `socks5_single.py`: 개별 포트용 독립 SOCKS5 서버
   - `manage_socks5.sh`: SOCKS5 서비스 관리 (start/stop/restart/status)
@@ -134,8 +134,8 @@ The system consists of several interconnected components:
    - IP rules ensure traffic from dongle IPs uses their respective tables
 
 ### Flask Proxy Server
-The Flask server (`server.py`) provides:
-- Network toggle API endpoint: `GET /toggle/<port>`
+The Toggle API server (`toggle_api.js`) provides:
+- Network toggle API endpoint: `GET /toggle/<subnet>` (Port 80)
 - Integration with Huawei LTE API for modem control
 - Traffic statistics collection
 - Proxy configuration for each dongle port (e.g., port 3311 for dongle on 192.168.11.x)
@@ -179,6 +179,7 @@ The system now includes a transparent SOCKS5 proxy server that makes traffic app
 - **Port Range**: 10011-10030 (10000 + dongle subnet number)
 - **Type**: SOCKS5 without authentication
 - **Host**: 112.161.54.7 (external access)
+- **API Port**: 80 (HTTP API for status/toggle)
 - **No proxy headers**: Completely transparent, no Via/X-Forwarded-For headers
 
 ### Key Features
@@ -190,7 +191,7 @@ The system now includes a transparent SOCKS5 proxy server that makes traffic app
 ### Example Usage
 ```bash
 # Check available proxies
-curl http://112.161.54.7:8080/proxy-info
+curl http://112.161.54.7/proxy-info
 
 # Use proxy with curl
 curl --socks5 112.161.54.7:10011 https://ipinfo.io/ip

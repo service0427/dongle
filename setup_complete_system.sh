@@ -305,7 +305,7 @@ EOF
     systemctl enable firewalld
     
     # 포트 개방
-    firewall-cmd --permanent --add-port=8080/tcp  # API
+    # firewall-cmd --permanent --add-port=8080/tcp  # API (포트 80 사용으로 변경)
     firewall-cmd --permanent --add-port=10011-10030/tcp  # SOCKS5
     firewall-cmd --permanent --add-masquerade  # NAT
     firewall-cmd --reload
@@ -599,7 +599,7 @@ verify_installation() {
     # API 테스트
     log_info "API 테스트..."
     sleep 3
-    curl -s http://localhost:8080/status || echo "API 서버가 아직 시작되지 않았습니다"
+    curl -s http://localhost/status || echo "API 서버가 아직 시작되지 않았습니다"
     
     # USB 허브 확인
     log_info "USB 허브 확인..."
@@ -621,7 +621,7 @@ print_summary() {
     echo "systemctl status dongle-socks5"
     echo ""
     echo "# API 상태 확인"
-    echo "curl http://localhost:8080/status"
+    echo "curl http://localhost/status"
     echo ""
     echo "# 프록시 정보 확인"
     echo "$PROJECT_DIR/scripts/check_proxy_ips.sh"
