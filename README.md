@@ -114,7 +114,6 @@ sudo systemctl status dongle-toggle-api
 - **프록시 상태**: `GET /status` 
 - **IP 토글**: `GET /toggle/{subnet}`
 - **SOCKS5 복구**: `GET /recover-socks5/{subnet}`
-- **SOCKS5 일괄 복구**: `POST /recover-socks5-batch`
 
 #### 프록시 사용
 
@@ -210,29 +209,6 @@ curl http://112.161.54.7/toggle/11
 }
 ```
 
-### POST /recover-socks5-batch
-
-여러 SOCKS5 서비스 일괄 복구
-
-**요청**:
-```json
-{
-  "subnets": [11, 12, 13]
-}
-```
-
-**응답**:
-```json
-{
-  "success": true,
-  "results": [
-    {"subnet": 11, "success": true},
-    {"subnet": 12, "success": true},
-    {"subnet": 13, "success": false, "error": "Service not found"}
-  ],
-  "timestamp": "2025-08-17T03:59:28.208Z"
-}
-```
 
 ## 🔄 동시성 제어
 
