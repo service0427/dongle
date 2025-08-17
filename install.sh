@@ -14,6 +14,14 @@ echo "========================================="
 echo "    동글 프록시 시스템 v1 설치"
 echo "========================================="
 
+# 0. 필요한 디렉토리 생성
+echo "0. 디렉토리 구조 생성..."
+mkdir -p /home/proxy/config
+mkdir -p /home/proxy/logs
+mkdir -p /home/proxy/scripts/socks5
+mkdir -p /home/proxy/scripts/utils
+echo "   디렉토리 생성 완료"
+
 # 1. rt_tables 설정
 echo "1. 라우팅 테이블 설정..."
 if ! grep -q "dongle11" /etc/iproute2/rt_tables; then
@@ -54,6 +62,10 @@ EOF
 echo "3. 실행 권한 설정..."
 chmod +x /home/proxy/scripts/*.sh 2>/dev/null
 chmod +x /home/proxy/scripts/*.py 2>/dev/null
+chmod +x /home/proxy/scripts/socks5/*.sh 2>/dev/null
+chmod +x /home/proxy/scripts/socks5/*.py 2>/dev/null
+chmod +x /home/proxy/scripts/utils/*.sh 2>/dev/null
+chmod +x /home/proxy/scripts/utils/*.py 2>/dev/null
 chmod +x /home/proxy/*.sh 2>/dev/null
 
 # 4. 서비스 재로드
@@ -73,8 +85,17 @@ crontab "${CRON_TEMP}.new"
 rm -f "$CRON_TEMP" "${CRON_TEMP}.new"
 echo "   상태 푸시 크론 등록 완료 (1분마다 mkt.techb.kr로 전송)"
 
-# 6. dongle_config.json 확인 및 초기 설정 안내
-echo "6. 초기 설정 확인..."
+# 6. uhubctl 설치 확인
+echo "6. uhubctl 설치 확인..."
+if ! command -v uhubctl &> /dev/null; then
+    echo -e "   ${YELLOW}uhubctl이 설치되지 않았습니다. 설치 중...${NC}"
+    /home/proxy/scripts/utils/install_uhubctl.sh
+else
+    echo "   uhubctl 설치 확인 완료"
+fi
+
+# 7. dongle_config.json 확인 및 초기 설정 안내
+echo "7. 초기 설정 확인..."
 if [ ! -f "/home/proxy/config/dongle_config.json" ]; then
     echo ""
     echo -e "${RED}========================================="
@@ -108,7 +129,11 @@ echo "     curl http://localhost/toggle/11"
 echo ""
 echo "  4. SOCKS5 프록시:"
 echo "     포트 10011-10030 (개별 서비스)"
+echo "     /home/proxy/scripts/socks5/manage_socks5.sh status"
 echo ""
 echo "  5. 상태 확인:"
 echo "     curl http://localhost/status"
+echo ""
+echo "  6. 허브 전체 재시작:"
+echo "     sudo /home/proxy/scripts/restart_all_hubs.sh"
 echo "========================================="
