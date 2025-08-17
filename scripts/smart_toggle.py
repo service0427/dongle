@@ -126,6 +126,11 @@ class SmartToggle:
                 diagnosis['http_reachable'] = bool(http_ip and http_ip.split('.')[0].isdigit())
                 diagnosis['https_reachable'] = bool(https_ip and https_ip.split('.')[0].isdigit())
                 
+                # SOCKS5 서비스 상태 확인 (중요!)
+                socks5_check = subprocess.run(f"systemctl is-active dongle-socks5-{self.subnet}",
+                                             shell=True, capture_output=True, text=True, timeout=5)
+                diagnosis['socks5_service_active'] = socks5_check.stdout.strip() == "active"
+                
                 # 외부 연결 판단 (HTTPS 우선, HTTP 폴백)
                 if diagnosis['https_reachable']:
                     diagnosis['external_reachable'] = True
@@ -162,31 +167,23 @@ class SmartToggle:
         return diagnosis
     
     def restart_socks5(self):
-        """긴급 복구: SOCKS5 서비스 재시작 (HTTP는 되는데 HTTPS 안 될 때)"""
+        """긴급 복구: SOCKS5 서비스 재시작 (서비스가 죽었거나 HTTPS 안 될 때)"""
         try:
-            # 특정 포트만 재시작 시도
-            port = 10000 + self.subnet
-            
-            # 먼저 해당 포트의 프로세스 찾기
-            find_cmd = f"lsof -ti TCP:{port}"
-            result = subprocess.run(find_cmd, shell=True, capture_output=True, text=True, timeout=5)
-            
-            if result.stdout.strip():
-                # 특정 포트의 프로세스만 재시작
-                pid = result.stdout.strip().split()[0]
-                # 개별 서비스 재시작
-                result = subprocess.run(f"sudo systemctl restart dongle-socks5-{self.subnet}", 
-                                      shell=True, capture_output=True, text=True, timeout=10)
-            else:
-                # 포트가 열려있지 않으면 개별 서비스 재시작
-                result = subprocess.run(f"sudo systemctl restart dongle-socks5-{self.subnet}", 
-                                      shell=True, capture_output=True, text=True, timeout=10)
+            # 개별 SOCKS5 서비스 재시작
+            result = subprocess.run(f"sudo systemctl restart dongle-socks5-{self.subnet}", 
+                                  shell=True, capture_output=True, text=True, timeout=10)
             
             if result.returncode == 0:
                 # 재시작 후 서비스 안정화 대기
                 time.sleep(3)
-                # 연결 테스트
-                return self.test_connectivity_https()
+                
+                # 서비스 상태 확인
+                status_check = subprocess.run(f"systemctl is-active dongle-socks5-{self.subnet}",
+                                            shell=True, capture_output=True, text=True, timeout=5)
+                
+                if status_check.stdout.strip() == "active":
+                    # 연결 테스트
+                    return self.test_connectivity_https()
             
             return False
         except Exception as e:
@@ -607,9 +604,9 @@ class SmartToggle:
             # 0단계: 진단
             diagnosis = self.diagnose_problem()
             
-            # SOCKS5 문제만 있으면 빠른 해결
-            if diagnosis.get('socks5_issue'):
-                # HTTP는 되는데 HTTPS 안 되는 경우 - SOCKS5 재시작만으로 해결
+            # SOCKS5 서비스가 죽어있거나 SOCKS5 문제가 있으면 빠른 해결
+            if not diagnosis.get('socks5_service_active', True) or diagnosis.get('socks5_issue'):
+                # SOCKS5 서비스가 비활성이거나 HTTP는 되는데 HTTPS 안 되는 경우
                 if self.restart_socks5():
                     # SOCKS5 검증 추가
                     if self.verify_socks5():
