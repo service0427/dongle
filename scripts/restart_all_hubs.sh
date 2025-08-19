@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # USB 허브 전체 재시작 스크립트
-# 자동 생성됨: 2025-08-16 22:21:37
+# 자동 생성됨: 2025-08-17 18:17:46
 #
 
 # 색상 정의
@@ -58,7 +58,7 @@ done
 echo -e "\n${YELLOW}동글 재연결 대기 중...${NC}"
 MAX_WAIT=60
 WAIT_COUNT=0
-EXPECTED_COUNT=8
+EXPECTED_COUNT=13
 
 while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
     CURRENT_COUNT=$(lsusb | grep -ci "huawei" || echo "0")
