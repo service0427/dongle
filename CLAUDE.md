@@ -212,3 +212,342 @@ const browser = await chromium.launch({
 ```
 
 See `/home/proxy/network-monitor/docs/PROXY_USAGE.md` for detailed usage instructions.
+
+## Troubleshooting & Diagnostics
+
+### SOCKS5 프록시 장애 진단 절차
+
+#### 문제 증상
+- 모든 SOCKS5 포트가 동시에 연결 안됨
+- 재시작해도 복구 안됨
+- 재부팅만 해결됨
+
+#### 즉시 확인 명령어
+```bash
+# 1. 현재 상태 확인
+/home/proxy/scripts/check_conntrack.sh
+/home/proxy/scripts/check_socks5_memory.sh
+
+# 2. TIME_WAIT 및 ephemeral 포트 확인
+cat /proc/net/nf_conntrack | grep TIME_WAIT | wc -l
+echo "Ephemeral ports: $(ss -an | grep -E ":[0-9]+\s" | awk '{print $4}' | cut -d: -f2 | awk '$1 >= 32768 && $1 <= 60999' | sort -u | wc -l) / 28231"
+```
+
+#### 문제 발생 후 분석 (중요!)
+```bash
+# 문제 발생 시간을 기록한 후 실행
+# 예: 2025-08-20 14:30에 문제 발생
+/home/proxy/scripts/analyze_failure_time.py "2025-08-20 14:30"
+
+# 상세 분석
+/home/proxy/scripts/analyze_failure_time.py "2025-08-20 14:30" --detailed
+```
+
+### 시스템 메트릭 수집
+
+#### 자동 수집 (크론)
+- **매분 실행**: `/home/proxy/scripts/collect_system_metrics.sh`
+- **저장 위치**: `/home/proxy/logs/metrics/YYYY-MM-DD/metrics_HH-MM.json`
+- **보관 기간**: 7일 (자동 삭제)
+- **최대 용량**: 5GB
+
+#### 수집 데이터
+- 시스템 메모리/CPU
+- Conntrack 상태 (TIME_WAIT, ESTABLISHED 등)
+- Ephemeral 포트 사용률
+- SOCKS5 프로세스별 메모리/스레드/연결수
+- 네트워크 인터페이스 에러
+- TCP 소켓 상태
+
+### 원인별 해결 방법
+
+#### 1. Ephemeral 포트 고갈 (가장 의심)
+```bash
+# 확인
+cat /proc/sys/net/ipv4/ip_local_port_range
+
+# 해결: 포트 범위 확대
+echo "15000 65000" > /proc/sys/net/ipv4/ip_local_port_range
+```
+
+#### 2. TIME_WAIT 과다
+```bash
+# 확인
+cat /proc/net/nf_conntrack | grep TIME_WAIT | wc -l
+
+# 해결: TIME_WAIT 최적화
+/home/proxy/scripts/optimize_time_wait.sh
+```
+
+#### 3. Conntrack 테이블 포화
+```bash
+# 확인
+cat /proc/sys/net/netfilter/nf_conntrack_count
+cat /proc/sys/net/netfilter/nf_conntrack_max
+
+# 해결: 테이블 크기 증가
+echo 524288 > /proc/sys/net/netfilter/nf_conntrack_max
+```
+
+#### 4. 메모리 누수
+```bash
+# 확인
+/home/proxy/scripts/socks5_detailed_status.py
+
+# 해결: 서비스 재시작
+/home/proxy/scripts/socks5/manage_socks5.sh restart all
+```
+
+### 예방 조치
+
+#### 자동 모니터링 (이미 설정됨)
+- **매시간**: SOCKS5 전체 재시작 (메모리 초기화)
+- **5분마다**: 헬스체크 및 문제시 개별 재시작
+- **매분**: 시스템 메트릭 수집 (사후 분석용)
+
+#### 권장 시스템 설정
+```bash
+# TCP 최적화 (모바일 네트워크 모방)
+/home/proxy/scripts/optimize_tcp_for_mobile.sh
+
+# TIME_WAIT 최적화
+/home/proxy/scripts/optimize_time_wait.sh
+```
+
+### 네트워크 버퍼 진단
+
+#### 패킷 드롭 확인
+```bash
+# 메인 인터페이스 패킷 드롭 확인
+netstat -i | grep eno1
+# RX-DRP와 TX-DRP 값이 높으면 버퍼 문제
+
+# 모든 동글 인터페이스 패킷 드롭 확인
+for i in {11..23}; do 
+  iface=$(ip addr | grep "192.168.$i.100" -B2 | head -1 | cut -d: -f2 | tr -d ' ')
+  if [ -n "$iface" ]; then
+    echo "Subnet $i ($iface):"
+    netstat -i | grep "^$iface" | head -1
+  fi
+done
+```
+
+#### Ring 버퍼 크기 확인
+```bash
+# 현재 Ring 버퍼 크기 확인
+ethtool -g eno1
+
+# Ring 버퍼가 256 이하면 너무 작음 (권장: 4096)
+# 증가 방법:
+sudo ethtool -G eno1 rx 4096 tx 4096
+```
+
+#### Softnet 통계 확인
+```bash
+# CPU별 패킷 처리 통계
+cat /proc/net/softnet_stat
+# 두 번째 값이 0이 아니면 패킷 드롭 발생
+
+# 해석: 각 줄은 CPU, 값은 16진수
+# 1번째: 처리된 패킷 수
+# 2번째: 드롭된 패킷 수 (중요!)
+# 3번째: time squeeze 발생 횟수
+```
+
+#### 네트워크 백로그 설정
+```bash
+# 현재 설정 확인
+sysctl net.core.netdev_max_backlog
+sysctl net.core.netdev_budget
+
+# 권장 설정 (패킷 드롭 방지)
+echo 5000 > /proc/sys/net/core/netdev_max_backlog
+echo 300 > /proc/sys/net/core/netdev_budget
+```
+
+#### 소켓 버퍼 크기 확인
+```bash
+# 현재 소켓 버퍼 크기
+sysctl net.core.rmem_max
+sysctl net.core.wmem_max
+
+# 권장 설정 (4MB)
+echo 4194304 > /proc/sys/net/core/rmem_max
+echo 4194304 > /proc/sys/net/core/wmem_max
+```
+
+#### 문제 발생시 네트워크 버퍼 분석
+```bash
+# analyze_failure_time.py가 자동으로 분석
+# 다음 항목들을 체크:
+# - 메인 인터페이스 RX/TX 드롭
+# - 동글 인터페이스 총 드롭
+# - Ring 버퍼 크기
+# - Softnet 드롭 통계
+# - netdev_max_backlog 설정
+
+/home/proxy/scripts/analyze_failure_time.py "2025-08-20 14:30"
+```
+
+### TLS 감지 문제 진단 및 해결
+
+#### 문제 증상
+- 쿠팡 등 특정 사이트에서 프록시 차단
+- HTTPS 연결은 되지만 페이지 로드 실패
+- 재부팅 후에는 일시적으로 정상 작동
+- 시간이 지나면 다시 차단
+
+#### 즉시 확인 사항
+```bash
+# TCP 타임스탬프 확인 (1이면 활성화 - 감지 위험)
+sysctl net.ipv4.tcp_timestamps
+
+# HTTPS TIME_WAIT 연결 수 확인
+ss -tn state time-wait '( dport = :443 or sport = :443 )' | wc -l
+
+# 쿠팡 접속 테스트
+curl --socks5 localhost:10011 https://www.coupang.com -I
+```
+
+#### 수집된 메트릭 분석
+```bash
+# 문제 발생 시간대 TLS 관련 분석
+/home/proxy/scripts/analyze_failure_time.py "2025-08-20 14:30"
+
+# 주요 확인 항목:
+# - TCP 타임스탬프 활성화 여부
+# - HTTPS TIME_WAIT 수 (500개 이상이면 위험)
+# - TCP 재전송 횟수
+# - 동글별 HTTPS 연결 수
+```
+
+#### 단계별 해결 방법
+
+##### 자동 해결 (권장)
+```bash
+# 자동으로 Level 1부터 5까지 순차 진행
+/home/proxy/scripts/tls_detection_fix.sh
+
+# 특정 레벨만 실행
+/home/proxy/scripts/tls_detection_fix.sh 1  # Level 1만
+/home/proxy/scripts/tls_detection_fix.sh 2  # Level 2만
+```
+
+##### 수동 해결 단계
+
+**Level 1: TCP 타임스탬프 비활성화 (가장 먼저 시도)**
+```bash
+# TLS 핑거프린팅 주요 지표 비활성화
+sysctl -w net.ipv4.tcp_timestamps=0
+
+# 10초 대기 후 테스트
+sleep 10
+curl --socks5 localhost:10011 https://www.coupang.com -I
+```
+
+**Level 2: TCP 모바일 최적화**
+```bash
+# 모바일 네트워크 환경 모방
+/home/proxy/scripts/optimize_tcp_for_mobile.sh
+
+# SOCKS5 재시작
+/home/proxy/scripts/socks5/manage_socks5.sh restart all
+```
+
+**Level 3: 연결 상태 정리**
+```bash
+# TIME_WAIT 최적화
+/home/proxy/scripts/optimize_time_wait.sh
+
+# Conntrack 테이블 정리
+conntrack -F
+
+# SOCKS5 재시작
+/home/proxy/scripts/socks5/manage_socks5.sh restart all
+```
+
+**Level 4: 동글 재시작**
+```bash
+# 문제 있는 동글만 재시작
+python3 /home/proxy/scripts/smart_toggle.py 11
+
+# 또는 전원 재시작
+/home/proxy/scripts/power_control.sh off 11
+sleep 5
+/home/proxy/scripts/power_control.sh on 11
+```
+
+**Level 5: 전체 재초기화**
+```bash
+# 모든 서비스 재시작
+systemctl restart dongle-toggle-api
+/home/proxy/init_dongle_config.sh
+```
+
+#### 예방 조치
+
+##### 부팅시 자동 적용
+```bash
+# /etc/rc.local 또는 systemd 서비스에 추가
+/home/proxy/scripts/optimize_tcp_for_mobile.sh
+```
+
+##### 주기적 상태 정리 (크론)
+```bash
+# crontab -e에 추가 (30분마다)
+*/30 * * * * /home/proxy/scripts/tls_detection_fix.sh 3 > /dev/null 2>&1
+```
+
+#### 모니터링
+
+##### 실시간 TLS 상태 확인
+```bash
+# TCP 설정 및 HTTPS 연결 모니터링
+watch -n 5 'echo "TCP Timestamps: $(sysctl -n net.ipv4.tcp_timestamps)"; \
+            echo "HTTPS TIME_WAIT: $(ss -tn state time-wait "( dport = :443 or sport = :443 )" | wc -l)"; \
+            echo "HTTPS ESTABLISHED: $(ss -tn state established "( dport = :443 or sport = :443 )" | wc -l)"'
+```
+
+##### 로그 확인
+```bash
+# TLS 해결 시도 로그
+tail -f /home/proxy/logs/tls_detection_fix.log
+
+# 메트릭 수집 데이터 (매분)
+ls -la /home/proxy/logs/metrics/$(date +%Y-%m-%d)/
+```
+
+#### 문제 지속시
+
+1. **메트릭 수집 후 분석**
+   ```bash
+   # 10분 대기 후 분석
+   sleep 600
+   /home/proxy/scripts/analyze_failure_time.py "$(date '+%Y-%m-%d %H:%M' -d '5 minutes ago')"
+   ```
+
+2. **TCP 덤프 수집** (고급)
+   ```bash
+   # TLS 핸드셰이크 캡처
+   tcpdump -i any -w /tmp/tls_capture.pcap 'tcp port 443' -c 1000
+   ```
+
+3. **최후 수단: 재부팅**
+   ```bash
+   sudo reboot
+   ```
+
+### 긴급 복구
+
+#### 전체 시스템 재시작 (최후 수단)
+```bash
+# 1. 서비스만 재시작
+systemctl restart dongle-toggle-api
+/home/proxy/scripts/socks5/manage_socks5.sh restart all
+
+# 2. 라우팅 초기화
+/home/proxy/init_dongle_config.sh
+
+# 3. 재부팅 (최후)
+reboot
+```

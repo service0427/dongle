@@ -10,15 +10,18 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}=== USB 허브 전체 재시작 ===${NC}"
-echo -e "이 작업은 모든 동글의 연결을 일시적으로 끊습니다."
-echo -n "계속하시겠습니까? (y/n): "
-read -r answer
+# 동글 수 체크
+EXPECTED_COUNT=$(grep -o '"expected_count": [0-9]*' /home/proxy/config/dongle_config.json | grep -o '[0-9]*')
+CURRENT_COUNT=$(lsusb | grep -ci "huawei" || echo "0")
 
-if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
-    echo "취소되었습니다."
+# 차이가 2개 미만이면 종료
+if [ $((EXPECTED_COUNT - CURRENT_COUNT)) -lt 2 ]; then
+    echo "[$(date)] 동글 정상: ${CURRENT_COUNT}/${EXPECTED_COUNT} - 종료"
     exit 0
 fi
+
+echo "[$(date)] 동글 부족: ${CURRENT_COUNT}/${EXPECTED_COUNT} - 재시작 진행"
+echo -e "${YELLOW}=== USB 허브 전체 재시작 ===${NC}"
 
 # 허브 정보
 MAIN_HUBS_WITH_DONGLES="1-3"

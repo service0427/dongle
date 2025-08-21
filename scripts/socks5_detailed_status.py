@@ -94,8 +94,16 @@ def analyze_socks5_process(proc, subnet):
         # 스레드 정보
         num_threads = p.num_threads()
         
-        # 연결 정보
-        connections = p.connections()
+        # 연결 정보 (경고 억제)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=DeprecationWarning)
+            try:
+                connections = p.connections()
+            except AttributeError:
+                # 새 버전의 psutil 사용
+                connections = [c for c in psutil.net_connections() if c.pid == p.pid]
+        
         conn_states = defaultdict(int)
         unique_ips = set()
         
