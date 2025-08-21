@@ -10,8 +10,20 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# 설정 파일 확인
+CONFIG_FILE="/home/proxy/config/dongle_config.json"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "[$(date)] ERROR: 설정 파일 없음 - $CONFIG_FILE"
+    exit 1
+fi
+
 # 동글 수 체크
-EXPECTED_COUNT=$(grep -o '"expected_count": [0-9]*' /home/proxy/config/dongle_config.json | grep -o '[0-9]*')
+EXPECTED_COUNT=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE'))['expected_count'])" 2>/dev/null)
+if [ -z "$EXPECTED_COUNT" ] || [ "$EXPECTED_COUNT" = "0" ]; then
+    echo "[$(date)] ERROR: expected_count 읽기 실패"
+    exit 1
+fi
+
 CURRENT_COUNT=$(lsusb | grep -ci "huawei" || echo "0")
 
 # 차이가 2개 미만이면 종료
@@ -23,9 +35,18 @@ fi
 echo "[$(date)] 동글 부족: ${CURRENT_COUNT}/${EXPECTED_COUNT} - 재시작 진행"
 echo -e "${YELLOW}=== USB 허브 전체 재시작 ===${NC}"
 
-# 허브 정보
-MAIN_HUBS_WITH_DONGLES="1-3"
-SUB_HUBS=(1-3.1 1-3.3 1-3.4)
+# 허브 정보 동적 로드
+MAIN_HUB=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE'))['hub_info']['main_hub'])" 2>/dev/null)
+SUB_HUBS_JSON=$(python3 -c "import json; print(' '.join(json.load(open('$CONFIG_FILE'))['hub_info']['sub_hubs']))" 2>/dev/null)
+SUB_HUBS=($SUB_HUBS_JSON)
+
+if [ -z "$MAIN_HUB" ] || [ -z "$SUB_HUBS_JSON" ]; then
+    echo "[$(date)] ERROR: 허브 정보 읽기 실패"
+    exit 1
+fi
+
+echo "메인 허브: $MAIN_HUB"
+echo "서브 허브: ${SUB_HUBS[@]}"
 
 echo -e "\n${YELLOW}토글 API 서비스 중지...${NC}"
 sudo systemctl stop dongle-toggle-api 2>/dev/null
@@ -40,28 +61,26 @@ done
 
 echo -e "\n${YELLOW}USB 허브 재시작 중...${NC}"
 
-# 동글이 연결된 메인 허브만 재시작
-for main_hub in $MAIN_HUBS_WITH_DONGLES; do
-    echo -e "  ${GREEN}메인 허브 ${main_hub} 재시작...${NC}"
-    
-    # USB 2.0 메인 허브 재시작 (1-x 형식)
-    if [[ "$main_hub" =~ ^1- ]]; then
-        sudo uhubctl -a cycle -l "$main_hub" -p 1,2,3,4 2>/dev/null || true
-    fi
-    
-    # USB 3.0 메인 허브 재시작 (2-x 형식)
-    if [[ "$main_hub" =~ ^2- ]]; then
-        sudo uhubctl -a cycle -l "$main_hub" -p 1,2,3,4 2>/dev/null || true
-    fi
-    
-    sleep 5  # 메인 허브 재시작 후 충분한 대기
-done
+# 메인 허브 재시작
+echo -e "  ${GREEN}메인 허브 ${MAIN_HUB} 재시작...${NC}"
+
+# USB 2.0 메인 허브 재시작 (1-x 형식)
+if [[ "$MAIN_HUB" =~ ^1- ]]; then
+    sudo uhubctl -a cycle -l "$MAIN_HUB" -p 1,2,3,4 2>/dev/null || true
+fi
+
+# USB 3.0 메인 허브 재시작 (2-x 형식)
+if [[ "$MAIN_HUB" =~ ^2- ]]; then
+    sudo uhubctl -a cycle -l "$MAIN_HUB" -p 1,2,3,4 2>/dev/null || true
+fi
+
+sleep 5  # 메인 허브 재시작 후 충분한 대기
 
 # 재연결 대기
 echo -e "\n${YELLOW}동글 재연결 대기 중...${NC}"
 MAX_WAIT=60
 WAIT_COUNT=0
-EXPECTED_COUNT=13
+# EXPECTED_COUNT는 상단에서 이미 설정됨
 
 while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
     CURRENT_COUNT=$(lsusb | grep -ci "huawei" || echo "0")
