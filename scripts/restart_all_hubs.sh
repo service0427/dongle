@@ -17,6 +17,13 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
+# --force 옵션 체크
+FORCE_MODE=0
+if [ "$1" = "--force" ] || [ "$1" = "-f" ]; then
+    FORCE_MODE=1
+    echo "[$(date)] 강제 실행 모드 활성화"
+fi
+
 # 동글 수 체크
 EXPECTED_COUNT=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE'))['expected_count'])" 2>/dev/null)
 if [ -z "$EXPECTED_COUNT" ] || [ "$EXPECTED_COUNT" = "0" ]; then
@@ -26,10 +33,13 @@ fi
 
 CURRENT_COUNT=$(lsusb | grep -ci "huawei" || echo "0")
 
-# 차이가 2개 미만이면 종료
-if [ $((EXPECTED_COUNT - CURRENT_COUNT)) -lt 2 ]; then
-    echo "[$(date)] 동글 정상: ${CURRENT_COUNT}/${EXPECTED_COUNT} - 종료"
-    exit 0
+# 강제 모드가 아니면 차이 체크
+if [ $FORCE_MODE -eq 0 ]; then
+    # 차이가 2개 미만이면 종료
+    if [ $((EXPECTED_COUNT - CURRENT_COUNT)) -lt 2 ]; then
+        echo "[$(date)] 동글 정상: ${CURRENT_COUNT}/${EXPECTED_COUNT} - 종료"
+        exit 0
+    fi
 fi
 
 echo "[$(date)] 동글 부족: ${CURRENT_COUNT}/${EXPECTED_COUNT} - 재시작 진행"
