@@ -299,6 +299,21 @@ EOF
         log_warning "메인 네트워크 인터페이스를 찾을 수 없습니다"
     fi
     
+    # NetworkManager 라우팅 우선순위 설정
+    log_info "NetworkManager 라우팅 우선순위 설정..."
+    mkdir -p /etc/NetworkManager/conf.d
+    cat > /etc/NetworkManager/conf.d/99-routing-priority.conf << 'EOF'
+[connection-usb]
+match-device=interface-name:enp*,interface-name:wwan*
+ipv4.route-metric=300
+
+[connection-main]
+match-device=interface-name:eno1
+ipv4.route-metric=1
+EOF
+    systemctl restart NetworkManager
+    log_info "라우팅 우선순위 설정 완료"
+    
     # firewalld 설정
     log_info "방화벽 설정..."
     systemctl start firewalld

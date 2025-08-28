@@ -160,7 +160,7 @@ print(json.dumps(data))
 fi
 
 # mkt.techb.kr로 상태 전송
-RESPONSE=$(curl -s -X POST http://mkt.techb.kr:3001/api/proxy \
+RESPONSE=$(curl -s -X POST http://61.84.75.37:3001/api/proxy \
   -H "Content-Type: application/json" \
   -d "$FORMATTED_STATUS" \
   -w "\nHTTP_CODE:%{http_code}")

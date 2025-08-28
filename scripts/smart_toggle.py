@@ -111,7 +111,7 @@ class SmartToggle:
                     return result.stdout.strip()
                 
                 def check_https():
-                    result = subprocess.run(f"curl --interface {interface} -s -m 3 https://mkt.techb.kr/ip",
+                    result = subprocess.run(f"curl --interface {interface} -s -m 3 https://api.ipify.org",
                                           shell=True, capture_output=True, text=True, timeout=5)
                     return result.stdout.strip()
                 
@@ -459,7 +459,7 @@ class SmartToggle:
             if not interface:
                 return False
             
-            result = subprocess.run(f"curl --interface {interface} -s -m 3 https://mkt.techb.kr/ip",
+            result = subprocess.run(f"curl --interface {interface} -s -m 3 https://api.ipify.org",
                                   shell=True, capture_output=True, text=True, timeout=5)
             ip = result.stdout.strip()
             
@@ -498,7 +498,7 @@ class SmartToggle:
                 return None
             
             # HTTPS 먼저 시도
-            result = subprocess.run(f"curl --interface {interface} -s -m 3 https://mkt.techb.kr/ip",
+            result = subprocess.run(f"curl --interface {interface} -s -m 3 https://api.ipify.org",
                                   shell=True, capture_output=True, text=True, timeout=5)
             ip = result.stdout.strip()
             
@@ -575,7 +575,7 @@ class SmartToggle:
             port = 10000 + self.subnet
             # SOCKS5를 통한 HTTPS 연결 테스트
             result = subprocess.run(
-                f"curl --socks5 127.0.0.1:{port} -s -m 3 https://mkt.techb.kr/ip",
+                f"curl --socks5 127.0.0.1:{port} -s -m 3 https://api.ipify.org",
                 shell=True, capture_output=True, text=True, timeout=5
             )
             ip = result.stdout.strip()
@@ -589,7 +589,7 @@ class SmartToggle:
             
             # 재시도
             result = subprocess.run(
-                f"curl --socks5 127.0.0.1:{port} -s -m 3 https://mkt.techb.kr/ip",
+                f"curl --socks5 127.0.0.1:{port} -s -m 3 https://api.ipify.org",
                 shell=True, capture_output=True, text=True, timeout=5
             )
             ip = result.stdout.strip()
