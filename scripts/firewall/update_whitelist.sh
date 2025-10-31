@@ -84,7 +84,7 @@ if [ -f "$WHITELIST_FILE" ]; then
     if diff -q "$WHITELIST_FILE" "${TMP_FILE}.clean" > /dev/null 2>&1; then
         log "INFO: Whitelist 변경사항 없음 (IP 개수: $VALID_IPS)"
         rm -f "$TMP_FILE" "${TMP_FILE}.clean"
-        exit 0
+        exit 2  # 변경사항 없음을 의미하는 exit code
     else
         log "INFO: Whitelist 변경 감지"
         log "변경 전 IP 개수: $(wc -l < "$WHITELIST_FILE")"

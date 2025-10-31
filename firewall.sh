@@ -134,12 +134,21 @@ fi
 
 # 2. Whitelist 다운로드
 echo ""
-echo -e "${GREEN}Whitelist 업데이트 중...${NC}"
+echo -e "${GREEN}Whitelist 업데이트 확인 중...${NC}"
 if [ -x "$SCRIPT_DIR/update_whitelist.sh" ]; then
     "$SCRIPT_DIR/update_whitelist.sh"
-    if [ $? -ne 0 ]; then
+    UPDATE_RESULT=$?
+
+    if [ $UPDATE_RESULT -eq 1 ]; then
         echo -e "${RED}ERROR: Whitelist 업데이트 실패${NC}"
         exit 1
+    elif [ $UPDATE_RESULT -eq 2 ]; then
+        echo -e "${YELLOW}✓ Whitelist 변경사항 없음 (방화벽 재적용 스킵)${NC}"
+        echo ""
+        echo "=========================================="
+        echo -e "  ${GREEN}이미 최신 상태입니다!${NC}"
+        echo "=========================================="
+        exit 0
     fi
 else
     echo -e "${RED}ERROR: update_whitelist.sh를 찾을 수 없습니다.${NC}"
@@ -148,7 +157,7 @@ fi
 
 echo -e "${GREEN}✓ Whitelist 업데이트 완료${NC}"
 
-# 3. 방화벽 규칙 적용
+# 3. 방화벽 규칙 적용 (변경사항 있을 때만)
 echo ""
 echo -e "${GREEN}방화벽 규칙 적용 중...${NC}"
 if [ -x "$SCRIPT_DIR/apply_firewall.sh" ]; then
