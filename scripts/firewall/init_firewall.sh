@@ -73,8 +73,9 @@ fi
 
 # 1. Whitelist URL 입력
 echo ""
-echo -e "${BLUE}1. GitHub Gist URL 설정${NC}"
-echo "예시: https://gist.githubusercontent.com/username/hash/raw/filename.txt"
+echo -e "${BLUE}1. Whitelist URL 설정${NC}"
+DEFAULT_URL="https://raw.githubusercontent.com/service0427/dongle/refs/heads/main/config/socks5-whitelist.txt"
+echo "기본값: $DEFAULT_URL"
 echo ""
 
 if [ -f "$CONFIG_FILE" ]; then
@@ -84,15 +85,18 @@ if [ -f "$CONFIG_FILE" ]; then
         read -p "그대로 사용하시겠습니까? (Y/n): " -n 1 -r
         echo ""
         if [[ $REPLY =~ ^[Nn]$ ]]; then
-            read -p "새 Whitelist URL: " WHITELIST_URL
+            read -p "새 Whitelist URL (Enter=기본값): " WHITELIST_URL
+            WHITELIST_URL=${WHITELIST_URL:-$DEFAULT_URL}
         else
             WHITELIST_URL="$EXISTING_URL"
         fi
     else
-        read -p "Whitelist URL: " WHITELIST_URL
+        read -p "Whitelist URL (Enter=기본값): " WHITELIST_URL
+        WHITELIST_URL=${WHITELIST_URL:-$DEFAULT_URL}
     fi
 else
-    read -p "Whitelist URL: " WHITELIST_URL
+    read -p "Whitelist URL (Enter=기본값): " WHITELIST_URL
+    WHITELIST_URL=${WHITELIST_URL:-$DEFAULT_URL}
 fi
 
 if [ -z "$WHITELIST_URL" ]; then
