@@ -79,30 +79,35 @@ fi
 # 각 줄에서 IP 부분만 추출 (# 이후는 무시)
 grep -v '^#' "$TMP_FILE" | grep -v '^$' | grep -oE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | sort -u > "${TMP_FILE}.clean"
 
-# 기존 파일과 비교
+# 기존 파일과 비교 (정렬 후 비교)
 if [ -f "$WHITELIST_FILE" ]; then
-    if diff -q "$WHITELIST_FILE" "${TMP_FILE}.clean" > /dev/null 2>&1; then
+    # 기존 파일도 정렬해서 비교
+    sort "$WHITELIST_FILE" > "${TMP_FILE}.old_sorted"
+    if diff -q "${TMP_FILE}.old_sorted" "${TMP_FILE}.clean" > /dev/null 2>&1; then
         log "INFO: Whitelist 변경사항 없음 (IP 개수: $VALID_IPS)"
-        rm -f "$TMP_FILE" "${TMP_FILE}.clean"
+        rm -f "$TMP_FILE" "${TMP_FILE}.clean" "${TMP_FILE}.old_sorted"
         exit 2  # 변경사항 없음을 의미하는 exit code
     else
         log "INFO: Whitelist 변경 감지"
         log "변경 전 IP 개수: $(wc -l < "$WHITELIST_FILE")"
         log "변경 후 IP 개수: $(wc -l < "${TMP_FILE}.clean")"
 
-        # 추가된 IP
-        ADDED=$(comm -13 <(sort "$WHITELIST_FILE") <(sort "${TMP_FILE}.clean"))
+        # 추가된 IP (이미 정렬되어 있음)
+        ADDED=$(comm -13 "${TMP_FILE}.old_sorted" "${TMP_FILE}.clean")
         if [ -n "$ADDED" ]; then
             log "추가된 IP:"
             echo "$ADDED" | tee -a "$LOG_FILE"
         fi
 
-        # 제거된 IP
-        REMOVED=$(comm -23 <(sort "$WHITELIST_FILE") <(sort "${TMP_FILE}.clean"))
+        # 제거된 IP (이미 정렬되어 있음)
+        REMOVED=$(comm -23 "${TMP_FILE}.old_sorted" "${TMP_FILE}.clean")
         if [ -n "$REMOVED" ]; then
             log "제거된 IP:"
             echo "$REMOVED" | tee -a "$LOG_FILE"
         fi
+
+        # 임시 파일 정리
+        rm -f "${TMP_FILE}.old_sorted"
     fi
 else
     log "INFO: 첫 번째 Whitelist 다운로드 (IP 개수: $VALID_IPS)"
