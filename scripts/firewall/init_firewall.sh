@@ -71,77 +71,33 @@ if [ -f "$CONFIG_FILE" ]; then
     fi
 fi
 
-# 1. Whitelist URL 입력
-echo ""
-echo -e "${BLUE}1. Whitelist URL 설정${NC}"
+# 1. Whitelist URL 설정 (자동)
 DEFAULT_URL="https://raw.githubusercontent.com/service0427/dongle/refs/heads/main/config/socks5-whitelist.txt"
-echo "기본값: $DEFAULT_URL"
-echo ""
 
 if [ -f "$CONFIG_FILE" ]; then
     EXISTING_URL=$(jq -r '.whitelist_url' "$CONFIG_FILE" 2>/dev/null)
     if [ -n "$EXISTING_URL" ] && [ "$EXISTING_URL" != "null" ]; then
-        echo "기존 URL: $EXISTING_URL"
-        read -p "그대로 사용하시겠습니까? (Y/n): " -n 1 -r
-        echo ""
-        if [[ $REPLY =~ ^[Nn]$ ]]; then
-            read -p "새 Whitelist URL (Enter=기본값): " WHITELIST_URL
-            WHITELIST_URL=${WHITELIST_URL:-$DEFAULT_URL}
-        else
-            WHITELIST_URL="$EXISTING_URL"
-        fi
+        WHITELIST_URL="$EXISTING_URL"
+        echo "기존 Whitelist URL 사용: $WHITELIST_URL"
     else
-        read -p "Whitelist URL (Enter=기본값): " WHITELIST_URL
-        WHITELIST_URL=${WHITELIST_URL:-$DEFAULT_URL}
+        WHITELIST_URL="$DEFAULT_URL"
+        echo "Whitelist URL: $WHITELIST_URL"
     fi
 else
-    read -p "Whitelist URL (Enter=기본값): " WHITELIST_URL
-    WHITELIST_URL=${WHITELIST_URL:-$DEFAULT_URL}
+    WHITELIST_URL="$DEFAULT_URL"
+    echo "Whitelist URL: $WHITELIST_URL"
 fi
 
-if [ -z "$WHITELIST_URL" ]; then
-    echo -e "${RED}ERROR: URL이 입력되지 않았습니다.${NC}"
-    exit 1
-fi
+# 2. 자동 업데이트 간격 (기본값: 1시간)
+UPDATE_INTERVAL=3600
+CRON_SCHEDULE="0 * * * *"
+echo "자동 업데이트 간격: 1시간마다"
 
-# 2. 자동 업데이트 간격
-echo ""
-echo -e "${BLUE}2. 자동 업데이트 간격 설정${NC}"
-echo "1) 30분마다"
-echo "2) 1시간마다 (권장)"
-echo "3) 6시간마다"
-echo "4) 12시간마다"
-echo "5) 하루에 한 번"
-read -p "선택 (1-5, 기본: 2): " UPDATE_CHOICE
-
-case $UPDATE_CHOICE in
-    1) UPDATE_INTERVAL=1800; CRON_SCHEDULE="*/30 * * * *" ;;
-    2|"") UPDATE_INTERVAL=3600; CRON_SCHEDULE="0 * * * *" ;;
-    3) UPDATE_INTERVAL=21600; CRON_SCHEDULE="0 */6 * * *" ;;
-    4) UPDATE_INTERVAL=43200; CRON_SCHEDULE="0 */12 * * *" ;;
-    5) UPDATE_INTERVAL=86400; CRON_SCHEDULE="0 0 * * *" ;;
-    *) echo -e "${YELLOW}잘못된 선택. 기본값(1시간) 사용${NC}"; UPDATE_INTERVAL=3600; CRON_SCHEDULE="0 * * * *" ;;
-esac
-
-# 3. 기타 옵션
-echo ""
-echo -e "${BLUE}3. 추가 옵션${NC}"
-
-read -p "localhost 접근 허용? (Y/n): " -n 1 -r
-echo ""
-if [[ $REPLY =~ ^[Nn]$ ]]; then
-    ALLOW_LOCALHOST="false"
-else
-    ALLOW_LOCALHOST="true"
-fi
-
-read -p "차단 시도 로그 기록? (Y/n): " -n 1 -r
-echo ""
-if [[ $REPLY =~ ^[Nn]$ ]]; then
-    LOG_BLOCKED="false"
-else
-    LOG_BLOCKED="true"
-fi
+# 3. 기타 옵션 (기본값 사용)
+ALLOW_LOCALHOST="true"
+LOG_BLOCKED="true"
+echo "localhost 접근: 허용"
+echo "차단 로그: 활성화"
 
 # 4. 설정 파일 생성
 echo ""
