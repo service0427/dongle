@@ -145,12 +145,27 @@ class SOCKS5Server:
     def relay_data(self, client_socket, remote_socket):
         """클라이언트와 원격 서버 간 데이터 중계"""
         try:
+            # TCP Keepalive 설정 (유휴 연결 자동 정리)
+            client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)   # 60초 유휴 후 체크 시작
+            client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)  # 10초 간격으로 체크
+            client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)     # 3번 실패하면 종료
+
+            remote_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            remote_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 60)
+            remote_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
+            remote_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
+
             client_socket.setblocking(False)
             remote_socket.setblocking(False)
-            
+
+            idle_count = 0
+            max_idle_cycles = 300  # 300초 (5분) 동안 데이터 없으면 종료
+
             while self.running:
                 ready = select.select([client_socket, remote_socket], [], [], 1)
                 if ready[0]:
+                    idle_count = 0  # 데이터 있으면 카운터 리셋
                     for sock in ready[0]:
                         data = sock.recv(4096)
                         if not data:
@@ -159,6 +174,11 @@ class SOCKS5Server:
                             remote_socket.sendall(data)
                         else:
                             client_socket.sendall(data)
+                else:
+                    idle_count += 1
+                    if idle_count >= max_idle_cycles:
+                        logger.debug(f"Connection idle timeout after {max_idle_cycles}s")
+                        return
         except:
             pass
         finally:
