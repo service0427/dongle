@@ -59,7 +59,8 @@ if [ -z "$FILE_SIZE" ] || [ "$FILE_SIZE" -eq 0 ]; then
 fi
 
 # IP 형식 검증 (주석과 빈 줄 제거 후)
-VALID_IPS=$(grep -E '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' "$TMP_FILE" | wc -l)
+# IP 뒤에 주석(# 설명)이 있는 경우도 처리
+VALID_IPS=$(grep -v '^#' "$TMP_FILE" | grep -v '^$' | grep -oE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | wc -l)
 TOTAL_LINES=$(grep -v '^#' "$TMP_FILE" | grep -v '^$' | wc -l)
 
 if [ "$VALID_IPS" -eq 0 ]; then
@@ -74,8 +75,9 @@ if [ "$VALID_IPS" -ne "$TOTAL_LINES" ]; then
     log "WARNING: 일부 줄이 유효한 IP 형식이 아닙니다. (유효: $VALID_IPS / 전체: $TOTAL_LINES)"
 fi
 
-# 유효한 IP만 추출 (정렬)
-grep -E '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' "$TMP_FILE" | sort -u > "${TMP_FILE}.clean"
+# 유효한 IP만 추출 (주석 제거, 정렬)
+# 각 줄에서 IP 부분만 추출 (# 이후는 무시)
+grep -v '^#' "$TMP_FILE" | grep -v '^$' | grep -oE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | sort -u > "${TMP_FILE}.clean"
 
 # 기존 파일과 비교
 if [ -f "$WHITELIST_FILE" ]; then
