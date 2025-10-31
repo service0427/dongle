@@ -18,12 +18,8 @@ cd /home/proxy
 sudo ./init_dongle_config.sh
 
 # Initialize firewall (optional but recommended)
-sudo /home/proxy/scripts/firewall/init_firewall.sh
-# You will be prompted for:
-# - GitHub Gist URL for whitelist
-# - Auto-update interval (default: 1 hour)
-# - localhost access permission
-# - Blocked attempt logging
+sudo ./firewall.sh
+# Automatically downloads whitelist and applies firewall rules
 ```
 
 ### Service Management
@@ -87,20 +83,14 @@ tail -f /home/proxy/logs/push_status.log
 
 ### Firewall Management (SOCKS5 Whitelist)
 ```bash
+# Setup/Update firewall (download latest whitelist and apply)
+sudo ./firewall.sh
+
 # Check firewall status
-sudo /home/proxy/scripts/firewall/check_firewall.sh
-
-# Check detailed iptables rules
-sudo /home/proxy/scripts/firewall/check_firewall.sh --detailed
-
-# Manual whitelist update
-sudo /home/proxy/scripts/firewall/update_whitelist.sh
+sudo ./firewall.sh status
 
 # Disable firewall
-sudo /home/proxy/scripts/firewall/init_firewall.sh --disable
-
-# Enable firewall
-sudo /home/proxy/scripts/firewall/init_firewall.sh --enable
+sudo ./firewall.sh off
 
 # View firewall logs
 tail -f /home/proxy/logs/firewall/firewall.log
