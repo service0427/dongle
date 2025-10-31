@@ -320,6 +320,21 @@ if systemctl is-active --quiet dongle-socks5; then
     sudo systemctl disable dongle-socks5 2>/dev/null
 fi
 
+# 사용하지 않는 SOCKS5 서비스 제거
+echo -e "사용하지 않는 SOCKS5 서비스 정리 중..."
+for i in {11..30}; do
+    # 현재 활성 서브넷에 없으면 제거
+    if ! echo "$ACTIVE_SUBNETS" | grep -qw "$i"; then
+        if [ -f "/etc/systemd/system/dongle-socks5-$i.service" ]; then
+            echo -e "  동글$i SOCKS5 서비스 제거..."
+            sudo systemctl stop dongle-socks5-$i 2>/dev/null
+            sudo systemctl disable dongle-socks5-$i 2>/dev/null
+            sudo rm -f "/etc/systemd/system/dongle-socks5-$i.service"
+        fi
+    fi
+done
+sudo systemctl daemon-reload
+
 # 개별 서비스 파일 생성
 for subnet in $ACTIVE_SUBNETS; do
     SERVICE_FILE="/etc/systemd/system/dongle-socks5-${subnet}.service"
