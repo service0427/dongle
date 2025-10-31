@@ -87,17 +87,13 @@ LOG_BLOCKED=$(jq -r '.log_blocked' "$CONFIG_FILE" 2>/dev/null)
 
 log "INFO: 방화벽 규칙 적용 시작"
 
-# 1. 기존 SOCKS5 관련 규칙 제거
+# 1. 기존 SOCKS5 관련 규칙 제거 (모든 규칙 삭제)
 log "INFO: 기존 SOCKS5 방화벽 규칙 제거"
-iptables -D INPUT -m comment --comment "SOCKS5-WHITELIST" -j DROP 2>/dev/null
-iptables -D INPUT -m comment --comment "SOCKS5-WHITELIST" -j ACCEPT 2>/dev/null
-iptables -D INPUT -m comment --comment "SOCKS5-WHITELIST-LOG" -j LOG 2>/dev/null
 
-# 기존 체인 방식 규칙 정리
-for port in $(seq 10000 10100); do
-    iptables -D INPUT -p tcp --dport $port -j DROP 2>/dev/null
-    iptables -D INPUT -p tcp --dport $port -j ACCEPT 2>/dev/null
-done
+# SOCKS5-WHITELIST 코멘트가 있는 모든 규칙 제거
+while iptables -D INPUT -m comment --comment "SOCKS5-WHITELIST" -j ACCEPT 2>/dev/null; do :; done
+while iptables -D INPUT -m comment --comment "SOCKS5-WHITELIST" -j DROP 2>/dev/null; do :; done
+while iptables -D INPUT -m comment --comment "SOCKS5-WHITELIST-LOG" -j LOG 2>/dev/null; do :; done
 
 # 2. 각 포트별로 규칙 적용
 for port in $ACTIVE_PORTS; do
