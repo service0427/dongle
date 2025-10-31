@@ -48,7 +48,7 @@ if [ "$1" = "off" ]; then
         echo -e "${GREEN}✓ 방화벽 비활성화 완료${NC}"
         echo ""
         echo "방화벽 규칙이 제거되었습니다."
-        echo "다시 활성화: sudo ./firewall.sh"
+        echo "다시 활성화: ./firewall.sh"
     else
         echo -e "${YELLOW}방화벽이 설정되어 있지 않습니다.${NC}"
     fi
@@ -127,7 +127,7 @@ else
     if [ "$ENABLED" != "true" ]; then
         echo -e "${YELLOW}방화벽이 비활성화되어 있습니다.${NC}"
         echo "활성화하려면 아래 명령어를 실행하세요:"
-        echo "  sudo ./firewall.sh"
+        echo "  ./firewall.sh"
         exit 0
     fi
 fi
@@ -202,9 +202,9 @@ fi
 
 echo ""
 echo "관리 명령어:"
-echo "  sudo ./firewall.sh        # Whitelist 업데이트 및 방화벽 재적용"
-echo "  sudo ./firewall.sh status # 방화벽 상태 확인"
-echo "  sudo ./firewall.sh off    # 방화벽 비활성화"
+echo "  ./firewall.sh        # Whitelist 업데이트 및 방화벽 재적용"
+echo "  ./firewall.sh status # 방화벽 상태 확인"
+echo "  ./firewall.sh off    # 방화벽 비활성화"
 echo ""
 
 exit 0

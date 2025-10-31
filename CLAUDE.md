@@ -84,17 +84,17 @@ tail -f /home/proxy/logs/push_status.log
 ### Firewall Management (SOCKS5 Whitelist)
 ```bash
 # Setup/Update firewall (download latest whitelist and apply)
-sudo ./firewall.sh
+./firewall.sh
 
 # Check firewall status
-sudo ./firewall.sh status
+./firewall.sh status
 
 # Disable firewall
-sudo ./firewall.sh off
+./firewall.sh off
 
 # View firewall logs
 tail -f /home/proxy/logs/firewall/firewall.log
-sudo grep "SOCKS5-BLOCKED" /var/log/messages | tail -20
+grep "SOCKS5-BLOCKED" /var/log/messages | tail -20
 ```
 
 ### Flask Server (if using pm2)
