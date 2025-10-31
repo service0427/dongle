@@ -88,16 +88,12 @@ else
     echo "Whitelist URL: $WHITELIST_URL"
 fi
 
-# 2. 자동 업데이트 간격 (기본값: 1시간)
-UPDATE_INTERVAL=3600
-CRON_SCHEDULE="0 * * * *"
-echo "자동 업데이트 간격: 1시간마다"
-
-# 3. 기타 옵션 (기본값 사용)
+# 2. 기본 옵션 설정
 ALLOW_LOCALHOST="true"
 LOG_BLOCKED="true"
 echo "localhost 접근: 허용"
 echo "차단 로그: 활성화"
+echo "자동 업데이트: 비활성화 (수동 관리)"
 
 # 4. 설정 파일 생성
 echo ""
@@ -107,7 +103,6 @@ cat > "$CONFIG_FILE" <<EOF
 {
   "enabled": true,
   "whitelist_url": "$WHITELIST_URL",
-  "update_interval": $UPDATE_INTERVAL,
   "allow_localhost": $ALLOW_LOCALHOST,
   "log_blocked": $LOG_BLOCKED,
   "auto_detect_ports": true,
@@ -170,22 +165,7 @@ systemctl start socks5-firewall.service
 
 echo -e "${GREEN}✓ systemd 서비스 등록 완료${NC}"
 
-# 8. cron 작업 등록
-echo ""
-echo -e "${GREEN}cron 작업 등록 중...${NC}"
-
-CRON_JOB="$CRON_SCHEDULE $SCRIPT_DIR/update_whitelist.sh >> $LOG_FILE 2>&1"
-
-# 기존 cron 작업 제거
-crontab -l 2>/dev/null | grep -v "update_whitelist.sh" | crontab - 2>/dev/null
-
-# 새 cron 작업 추가
-(crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
-
-echo -e "${GREEN}✓ cron 작업 등록 완료${NC}"
-echo "  스케줄: $CRON_SCHEDULE"
-
-# 9. 완료 메시지
+# 8. 완료 메시지
 echo ""
 echo "=========================================="
 echo -e "  ${GREEN}방화벽 설정 완료!${NC}"
@@ -193,9 +173,9 @@ echo "=========================================="
 echo ""
 echo "설정 요약:"
 echo "  - Whitelist URL: $WHITELIST_URL"
-echo "  - 업데이트 간격: $UPDATE_INTERVAL초 ($CRON_SCHEDULE)"
 echo "  - localhost 허용: $ALLOW_LOCALHOST"
 echo "  - 차단 로그: $LOG_BLOCKED"
+echo "  - 자동 업데이트: 비활성화 (수동 관리)"
 echo ""
 echo "관리 명령어:"
 echo "  - 상태 확인: sudo $SCRIPT_DIR/check_firewall.sh"
@@ -206,6 +186,10 @@ echo ""
 echo "로그 파일:"
 echo "  - $LOG_FILE"
 echo "  - /var/log/messages (차단 로그)"
+echo ""
+echo "참고:"
+echo "  - Whitelist 변경: GitHub에서 config/socks5-whitelist.txt 수정 후"
+echo "  - 적용: sudo $SCRIPT_DIR/update_whitelist.sh 실행"
 echo ""
 
 exit 0
