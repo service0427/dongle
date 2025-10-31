@@ -164,9 +164,10 @@ fi
 
 echo -e "${GREEN}✓ 방화벽 규칙 적용 완료${NC}"
 
-# 4. systemd 서비스 시작 (첫 설정 시)
+# 4. systemd 서비스 상태 확인
 if ! systemctl is-active --quiet socks5-firewall.service; then
-    systemctl start socks5-firewall.service
+    # 서비스가 실행 중이 아니면 활성화만 (start 하지 않음, 이미 규칙 적용됨)
+    systemctl enable socks5-firewall.service 2>/dev/null || true
 fi
 
 # 5. 완료 메시지
@@ -179,7 +180,7 @@ echo ""
 # Whitelist 정보 표시
 if [ -f "$WHITELIST_FILE" ]; then
     IP_COUNT=$(grep -E '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' "$WHITELIST_FILE" | wc -l)
-    echo "허용된 IP: ${GREEN}${IP_COUNT}개${NC}"
+    echo -e "허용된 IP: ${GREEN}${IP_COUNT}개${NC}"
 fi
 
 # 활성 포트 표시
@@ -187,7 +188,7 @@ DONGLE_CONFIG="/home/proxy/config/dongle_config.json"
 if [ -f "$DONGLE_CONFIG" ]; then
     ACTIVE_PORTS=$(jq -r '.interface_mapping[].socks5_port' "$DONGLE_CONFIG" 2>/dev/null | sort -n | tr '\n' ' ')
     PORT_COUNT=$(echo $ACTIVE_PORTS | wc -w)
-    echo "보호된 포트: ${GREEN}${PORT_COUNT}개${NC} ($ACTIVE_PORTS)"
+    echo -e "보호된 포트: ${GREEN}${PORT_COUNT}개${NC} ($ACTIVE_PORTS)"
 fi
 
 echo ""
