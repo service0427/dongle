@@ -4,9 +4,10 @@
 # SOCKS5 방화벽 통합 관리 스크립트
 #
 # 사용법:
-#   sudo ./firewall.sh        # 방화벽 설정/업데이트
-#   sudo ./firewall.sh off    # 방화벽 비활성화
-#   sudo ./firewall.sh status # 방화벽 상태 확인
+#   sudo ./firewall.sh          # 방화벽 설정/업데이트
+#   sudo ./firewall.sh --force  # 강제 재적용 (변경사항 없어도)
+#   sudo ./firewall.sh off      # 방화벽 비활성화
+#   sudo ./firewall.sh status   # 방화벽 상태 확인
 #############################################
 
 SCRIPT_DIR="/home/proxy/scripts/firewall"
@@ -143,12 +144,19 @@ if [ -x "$SCRIPT_DIR/update_whitelist.sh" ]; then
         echo -e "${RED}ERROR: Whitelist 업데이트 실패${NC}"
         exit 1
     elif [ $UPDATE_RESULT -eq 2 ]; then
-        echo -e "${YELLOW}✓ Whitelist 변경사항 없음 (방화벽 재적용 스킵)${NC}"
-        echo ""
-        echo "=========================================="
-        echo -e "  ${GREEN}이미 최신 상태입니다!${NC}"
-        echo "=========================================="
-        exit 0
+        # --force 옵션이 있으면 스킵 안 함
+        if [ "$1" = "--force" ]; then
+            echo -e "${YELLOW}✓ Whitelist 변경사항 없음 (--force 옵션으로 강제 재적용)${NC}"
+        else
+            echo -e "${YELLOW}✓ Whitelist 변경사항 없음 (방화벽 재적용 스킵)${NC}"
+            echo ""
+            echo "=========================================="
+            echo -e "  ${GREEN}이미 최신 상태입니다!${NC}"
+            echo "=========================================="
+            echo ""
+            echo "강제 재적용: ./firewall.sh --force"
+            exit 0
+        fi
     fi
 else
     echo -e "${RED}ERROR: update_whitelist.sh를 찾을 수 없습니다.${NC}"
@@ -202,9 +210,10 @@ fi
 
 echo ""
 echo "관리 명령어:"
-echo "  ./firewall.sh        # Whitelist 업데이트 및 방화벽 재적용"
-echo "  ./firewall.sh status # 방화벽 상태 확인"
-echo "  ./firewall.sh off    # 방화벽 비활성화"
+echo "  ./firewall.sh          # Whitelist 업데이트 및 방화벽 재적용"
+echo "  ./firewall.sh --force  # 강제 재적용 (변경사항 없어도)"
+echo "  ./firewall.sh status   # 방화벽 상태 확인"
+echo "  ./firewall.sh off      # 방화벽 비활성화"
 echo ""
 
 exit 0

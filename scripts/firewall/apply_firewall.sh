@@ -90,10 +90,15 @@ log "INFO: 방화벽 규칙 적용 시작"
 # 1. 기존 SOCKS5 관련 규칙 제거 (모든 규칙 삭제)
 log "INFO: 기존 SOCKS5 방화벽 규칙 제거"
 
-# SOCKS5-WHITELIST 코멘트가 있는 모든 규칙 제거
-while iptables -D INPUT -m comment --comment "SOCKS5-WHITELIST" -j ACCEPT 2>/dev/null; do :; done
-while iptables -D INPUT -m comment --comment "SOCKS5-WHITELIST" -j DROP 2>/dev/null; do :; done
-while iptables -D INPUT -m comment --comment "SOCKS5-WHITELIST-LOG" -j LOG 2>/dev/null; do :; done
+# SOCKS5-WHITELIST 코멘트가 있는 모든 규칙 제거 (줄 번호로 역순 삭제)
+while true; do
+    # SOCKS5-WHITELIST 규칙의 줄 번호 찾기 (역순)
+    line=$(iptables -L INPUT -n --line-numbers | grep "SOCKS5-WHITELIST" | tail -1 | awk '{print $1}')
+    if [ -z "$line" ]; then
+        break
+    fi
+    iptables -D INPUT "$line" 2>/dev/null || break
+done
 
 # 2. 각 포트별로 규칙 적용
 for port in $ACTIVE_PORTS; do
