@@ -16,6 +16,14 @@ This repository contains a unified USB dongle proxy management system:
 # Initialize dongle configuration
 cd /home/proxy
 sudo ./init_dongle_config.sh
+
+# Initialize firewall (optional but recommended)
+sudo /home/proxy/scripts/firewall/init_firewall.sh
+# You will be prompted for:
+# - GitHub Gist URL for whitelist
+# - Auto-update interval (default: 1 hour)
+# - localhost access permission
+# - Blocked attempt logging
 ```
 
 ### Service Management
@@ -77,6 +85,28 @@ tail -f /home/proxy/logs/socks5_proxy.log
 tail -f /home/proxy/logs/push_status.log
 ```
 
+### Firewall Management (SOCKS5 Whitelist)
+```bash
+# Check firewall status
+sudo /home/proxy/scripts/firewall/check_firewall.sh
+
+# Check detailed iptables rules
+sudo /home/proxy/scripts/firewall/check_firewall.sh --detailed
+
+# Manual whitelist update
+sudo /home/proxy/scripts/firewall/update_whitelist.sh
+
+# Disable firewall
+sudo /home/proxy/scripts/firewall/init_firewall.sh --disable
+
+# Enable firewall
+sudo /home/proxy/scripts/firewall/init_firewall.sh --enable
+
+# View firewall logs
+tail -f /home/proxy/logs/firewall/firewall.log
+sudo grep "SOCKS5-BLOCKED" /var/log/messages | tail -20
+```
+
 ### Flask Server (if using pm2)
 ```bash
 # Flask server is managed by pm2 at /home/proxy/server.py
@@ -102,19 +132,27 @@ pm2 logs server
 - `power_control.sh`: USB 동글 전원 제어 (개별/전체)
 - `usb_mapping.json`: USB 디바이스 매핑 정보 (허브/포트/경로)
 
-### 관리/진단 도구 (utils/)  
+### 관리/진단 도구 (utils/)
 - `check_proxy_ips.sh`: 모든 프록시 연결 상태 진단
 - `dongle_manager.sh`: 트래픽 리셋/APN 확인
 - `dongle_info.py`: 동글 정보 수집 API
 - `install_uhubctl.sh`: uhubctl 설치 스크립트
 
+### 방화벽 관리 (firewall/)
+- `init_firewall.sh`: 방화벽 초기 설정 (대화형)
+- `apply_firewall.sh`: iptables 규칙 적용
+- `update_whitelist.sh`: GitHub Gist에서 Whitelist 다운로드
+- `check_firewall.sh`: 방화벽 상태 및 차단 통계 확인
+
 ### 중요 설정
 - **초기 설정 필수**: `init_dongle_config.sh` 실행으로 동글 구성
+- **방화벽 설정 권장**: `init_firewall.sh` 실행으로 SOCKS5 보안 강화
 - **개별 SOCKS5 서비스**: 각 동글별 독립 systemd 서비스
 - **자동 연결**: systemd 서비스로 부팅 시 자동 시작
 - **안정적인 토글**: 4단계 진단 기반 복구 시스템
 - **동시 토글 제한**: 정상 3개, 복구 중 무제한
 - **USB 매핑 영구 저장**: dongle_config.json에 허브/포트 매핑
+- **Whitelist 자동 업데이트**: GitHub Gist 기반 중앙 관리
 
 ## Architecture
 
@@ -148,6 +186,15 @@ The Toggle API server (`toggle_api.js`) provides:
 - Integration with Huawei LTE API for modem control
 - Traffic statistics collection
 - Proxy configuration for each dongle port (e.g., port 3311 for dongle on 192.168.11.x)
+
+### SOCKS5 Firewall System
+The firewall system provides IP-based access control:
+- **iptables-based whitelist**: Only approved IPs can connect to SOCKS5 ports
+- **GitHub Gist integration**: Central whitelist management across multiple servers
+- **Auto-detection**: Automatically discovers active SOCKS5 ports from dongle_config.json
+- **Auto-update**: Periodically downloads latest whitelist (default: hourly)
+- **systemd integration**: Firewall rules apply on boot after dongle-toggle-api
+- **Logging**: Optional logging of blocked connection attempts
 
 ### Key Patterns
 
