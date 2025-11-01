@@ -72,14 +72,10 @@ if __name__ == "__main__":
 
     subnet = int(sys.argv[1])
 
-    # 재부팅 확인
-    print(f"\n동글 {subnet}을(를) 재부팅하시겠습니까?")
-    confirm = input("계속하려면 'y' 입력: ")
-
-    if confirm.lower() == 'y':
-        success = reboot_dongle(subnet)
-        if success:
-            print("\n재부팅 후 상태 확인:")
-            print(f"  python3 /home/proxy/scripts/check_sim_status.py {subnet}")
+    # 즉시 재부팅
+    success = reboot_dongle(subnet)
+    if success:
+        print("\n재부팅 후 상태 확인:")
+        print(f"  python3 /home/proxy/scripts/check_sim_status.py {subnet}")
     else:
-        print("재부팅 취소됨")
+        sys.exit(1)
