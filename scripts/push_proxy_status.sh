@@ -195,11 +195,11 @@ if [ -z "$CRON_JOB" ] && [ "$0" != "/bin/bash" ]; then
     echo "Active Proxies: $PROXY_COUNT (connected/total)"
     
     # USB 상태 요약
-    PHYSICAL=$(sudo uhubctl | grep -c "HUAWEI_MOBILE" || echo 0)
+    PHYSICAL=$(lsusb 2>/dev/null | grep -i "Huawei\|12d1" | wc -l)
     echo "Physical Dongles: $PHYSICAL"
-    if [ "$EXPECTED_COUNT" -gt 0 ]; then
+    if [ "$EXPECTED_COUNT" -gt 0 ] 2>/dev/null; then
         echo "Expected Dongles: $EXPECTED_COUNT"
-        if [ "$PHYSICAL" -ne "$EXPECTED_COUNT" ]; then
+        if [ "$PHYSICAL" -ne "$EXPECTED_COUNT" ] 2>/dev/null; then
             echo "WARNING: Physical dongle count mismatch!"
         fi
     fi
@@ -226,9 +226,9 @@ fi
 echo "$FORMATTED_STATUS" > "/home/proxy/logs/last_push_status.json"
 
 # 동글 개수 불일치 경고
-if [ "$EXPECTED_COUNT" -gt 0 ]; then
-    PHYSICAL=$(sudo uhubctl | grep -c "HUAWEI_MOBILE" || echo 0)
-    if [ "$PHYSICAL" -ne "$EXPECTED_COUNT" ]; then
+if [ "$EXPECTED_COUNT" -gt 0 ] 2>/dev/null; then
+    PHYSICAL=$(lsusb 2>/dev/null | grep -i "Huawei\|12d1" | wc -l)
+    if [ "$PHYSICAL" -ne "$EXPECTED_COUNT" ] 2>/dev/null; then
         log_message "WARNING: Dongle count mismatch - Expected: $EXPECTED_COUNT, Physical: $PHYSICAL"
     fi
 fi
