@@ -1,16 +1,20 @@
-# 백업 파일들
+# 백업 및 아카이브 (배포 안함)
 backup/
 backup_*/
+archive/
 *.backup
 *.bak
 
-# 로그 파일들  
+# 로그 파일들 (배포 안함)
 *.log
 logs/
 log/
 
-# 상태 및 런타임 파일들
-*.json
+# 상태 및 런타임 파일들 (서버별로 다름, 배포 안함)
+proxy_state.json
+config/dongle_config.json
+
+# 데이터베이스 (배포 안함)
 *.db
 *.sqlite
 *.sqlite3
@@ -18,7 +22,7 @@ log/
 *.lock
 /tmp/
 
-# Python
+# Python 캐시 (배포 안함)
 __pycache__/
 *.py[cod]
 *$py.class
@@ -26,38 +30,38 @@ __pycache__/
 venv/
 env/
 
-# Node.js
+# Node.js (배포 안함)
 node_modules/
 npm-debug.log*
 package-lock.json
 
-# 시스템/OS 파일
+# 시스템/OS 파일 (배포 안함)
 .DS_Store
 Thumbs.db
 *.swp
 *.swo
 *~
 
-# IDE 파일들
+# IDE 파일들 (배포 안함)
 .vscode/
 .idea/
 *.code-workspace
+.claude/
 
-# 설정 파일 (민감정보)
+# 민감 정보 (배포 안함)
 config/secrets.conf
 *.key
 *.pem
 *.cert
 
-# 환경변수 파일
+# 환경변수 파일 (배포 안함)
 .env
 .env.local
 
-# 빌드 결과물
+# 빌드 결과물 (배포 안함)
 dist/
 build/
 *.rpm
 *.deb
 *.tar.gz
-*.zip/uhubctl/
 uhubctl/

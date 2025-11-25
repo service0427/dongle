@@ -29,11 +29,12 @@ class SmartToggle:
             'success': False,
             'ip': None,
             'traffic': {'upload': 0, 'download': 0},
+            'signal': None,
             'step': 0
         }
         self.start_time = time.time()
         self.diagnosis = {}  # 진단 정보는 내부용으로만 사용
-        
+
         # 라우팅 테이블 이름 자동 감지
         self.routing_table = self.detect_routing_table()
     
@@ -271,7 +272,7 @@ class SmartToggle:
                 # IP를 가져왔고 변경되었으면 성공
                 if new_ip and new_ip != old_ip:
                     self.result['ip'] = new_ip
-                    
+
                     # 트래픽 통계
                     try:
                         stats = client.monitoring.traffic_statistics()
@@ -282,7 +283,40 @@ class SmartToggle:
                     except Exception as e:
                         # 실패해도 기본값 유지
                         pass
-                    
+
+                    # 신호 정보 수집
+                    try:
+                        signal = client.device.signal()
+
+                        # 신호 값 파싱 (dBm, dB 제거)
+                        def parse_signal_value(value):
+                            if value is None or value == 'None':
+                                return None
+                            try:
+                                if isinstance(value, str):
+                                    value = value.replace('dBm', '').replace('dB', '').strip()
+                                return float(value)
+                            except:
+                                return None
+
+                        rsrp = parse_signal_value(signal.get('rsrp'))
+                        rsrq = parse_signal_value(signal.get('rsrq'))
+                        rssi = parse_signal_value(signal.get('rssi'))
+                        sinr = parse_signal_value(signal.get('sinr'))
+
+                        self.result['signal'] = {
+                            'rsrp': rsrp,
+                            'rsrq': rsrq,
+                            'rssi': rssi,
+                            'sinr': sinr,
+                            'band': signal.get('band'),
+                            'cell_id': signal.get('cell_id'),
+                            'pci': signal.get('pci'),
+                            'plmn': signal.get('plmn')
+                        }
+                    except:
+                        pass
+
                     return True
                 
                 # 10초 후에도 연결 안되면 조기 종료
@@ -303,6 +337,39 @@ class SmartToggle:
                     }
                 except:
                     pass
+
+                # 마지막으로 신호 정보 시도
+                try:
+                    signal = client.device.signal()
+
+                    def parse_signal_value(value):
+                        if value is None or value == 'None':
+                            return None
+                        try:
+                            if isinstance(value, str):
+                                value = value.replace('dBm', '').replace('dB', '').strip()
+                            return float(value)
+                        except:
+                            return None
+
+                    rsrp = parse_signal_value(signal.get('rsrp'))
+                    rsrq = parse_signal_value(signal.get('rsrq'))
+                    rssi = parse_signal_value(signal.get('rssi'))
+                    sinr = parse_signal_value(signal.get('sinr'))
+
+                    self.result['signal'] = {
+                        'rsrp': rsrp,
+                        'rsrq': rsrq,
+                        'rssi': rssi,
+                        'sinr': sinr,
+                        'band': signal.get('band'),
+                        'cell_id': signal.get('cell_id'),
+                        'pci': signal.get('pci'),
+                        'plmn': signal.get('plmn')
+                    }
+                except:
+                    pass
+
                 return True
                 
             return False
@@ -538,11 +605,11 @@ class SmartToggle:
             pass
     
     def get_traffic_info(self):
-        """트래픽 정보 수집 (복구 완료 후 실행)"""
+        """트래픽 정보 및 신호 정보 수집 (복구 완료 후 실행)"""
         try:
             modem_ip = f'192.168.{self.subnet}.1'
             connection = Connection(f'http://{modem_ip}/', username=USERNAME, password=PASSWORD, timeout=TIMEOUT)
-            
+
             # Already login 처리
             try:
                 client = Client(connection)
@@ -554,16 +621,53 @@ class SmartToggle:
                     client = Client(connection)
                 else:
                     raise
-            
+
             # 트래픽 통계 가져오기
             stats = client.monitoring.traffic_statistics()
             self.result['traffic'] = {
                 'upload': int(stats['TotalUpload']),
                 'download': int(stats['TotalDownload'])
             }
+
+            # 신호 정보 가져오기
+            try:
+                signal = client.device.signal()
+
+                # 신호 값 파싱 (dBm, dB 제거)
+                def parse_signal_value(value):
+                    if value is None or value == 'None':
+                        return None
+                    try:
+                        # 문자열에서 숫자만 추출
+                        if isinstance(value, str):
+                            value = value.replace('dBm', '').replace('dB', '').strip()
+                        return float(value)
+                    except:
+                        return None
+
+                rsrp = parse_signal_value(signal.get('rsrp'))
+                rsrq = parse_signal_value(signal.get('rsrq'))
+                rssi = parse_signal_value(signal.get('rssi'))
+                sinr = parse_signal_value(signal.get('sinr'))
+
+                self.result['signal'] = {
+                    'rsrp': rsrp,
+                    'rsrq': rsrq,
+                    'rssi': rssi,
+                    'sinr': sinr,
+                    'band': signal.get('band'),
+                    'cell_id': signal.get('cell_id'),
+                    'pci': signal.get('pci'),
+                    'plmn': signal.get('plmn')
+                }
+            except Exception as e:
+                # 신호 정보 실패시 None으로 설정
+                self.result['signal'] = None
+
         except Exception as e:
             # 실패시 기본값 유지
             self.result['traffic'] = {'upload': 0, 'download': 0}
+            self.result['signal'] = None
     
     def verify_socks5(self):
         """SOCKS5 프록시 작동 확인"""
@@ -701,6 +805,7 @@ def main():
             'success': result.get('success', False),
             'ip': result.get('ip'),
             'traffic': result.get('traffic', {'upload': 0, 'download': 0}),
+            'signal': result.get('signal'),
             'step': result.get('step', 0)
         }
         print(json.dumps(output, ensure_ascii=False))
@@ -711,6 +816,7 @@ def main():
             'success': False,
             'ip': None,
             'traffic': {'upload': 0, 'download': 0},
+            'signal': None,
             'step': 4  # 마지막 단계까지 시도했다고 가정
         }
         print(json.dumps(output, ensure_ascii=False))

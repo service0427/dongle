@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # USB 허브 전체 재시작 스크립트
-# 자동 생성됨: 2025-08-23 17:44:06
+# 자동 생성됨: 2025-11-23 10:27:03
 #
 
 # 색상 정의
@@ -10,34 +10,19 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# 설정 파일에서 동글 개수 확인
-CONFIG_FILE="/home/proxy/config/dongle_config.json"
-if [ -f "$CONFIG_FILE" ]; then
-    CONFIG_COUNT=$(cat "$CONFIG_FILE" | jq -r '.interface_mapping | length' 2>/dev/null || echo "0")
-else
-    CONFIG_COUNT=0
-fi
+echo -e "${YELLOW}=== USB 허브 전체 재시작 ===${NC}"
+echo -e "이 작업은 모든 동글의 연결을 일시적으로 끊습니다."
+echo -n "계속하시겠습니까? (y/n): "
+read -r answer
 
-# 현재 연결된 동글 개수 확인
-CURRENT_COUNT=$(lsusb | grep -ci "huawei" || echo "0")
-
-echo -e "${YELLOW}=== USB 허브 상태 확인 ===${NC}"
-echo -e "설정된 동글 개수: ${GREEN}${CONFIG_COUNT}개${NC}"
-echo -e "현재 연결된 동글: ${YELLOW}${CURRENT_COUNT}개${NC}"
-
-# 차이가 2개 이상이면 자동 실행, 그 외에는 모두 종료
-DIFF=$((CONFIG_COUNT - CURRENT_COUNT))
-if [ $DIFF -lt 2 ]; then
-    echo -e "${GREEN}✓ 동글 상태 정상 (차이: ${DIFF}개)${NC}"
+if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
+    echo "취소되었습니다."
     exit 0
 fi
 
-echo -e "${RED}경고: ${DIFF}개의 동글이 연결되지 않았습니다!${NC}"
-echo -e "${YELLOW}USB 허브를 재시작합니다...${NC}"
-
 # 허브 정보
-MAIN_HUBS_WITH_DONGLES="1-3"
-SUB_HUBS=(1-3.1 1-3.3 1-3.4)
+MAIN_HUBS_WITH_DONGLES=""
+SUB_HUBS=(1-3.4)
 
 echo -e "\n${YELLOW}토글 API 서비스 중지...${NC}"
 sudo systemctl stop dongle-toggle-api 2>/dev/null
@@ -73,8 +58,7 @@ done
 echo -e "\n${YELLOW}동글 재연결 대기 중...${NC}"
 MAX_WAIT=60
 WAIT_COUNT=0
-# CONFIG_COUNT를 EXPECTED_COUNT로 사용
-EXPECTED_COUNT=$CONFIG_COUNT
+EXPECTED_COUNT=1
 
 while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
     CURRENT_COUNT=$(lsusb | grep -ci "huawei" || echo "0")

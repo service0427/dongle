@@ -234,9 +234,9 @@ install_uhubctl() {
 # 6. 네트워크 시스템 설정
 setup_network() {
     log_section "네트워크 시스템 설정"
-    
-    # IP 포워딩 설정
-    log_info "IP 포워딩 설정..."
+
+    # IP 포워딩 및 TCP 최적화 설정
+    log_info "IP 포워딩 및 TCP 최적화 설정..."
     cat > /etc/sysctl.d/99-proxy.conf <<EOF
 # Proxy system network settings
 net.ipv4.ip_forward = 1
@@ -244,6 +244,29 @@ net.ipv4.conf.all.rp_filter = 0
 net.ipv4.conf.default.rp_filter = 0
 net.ipv4.conf.all.accept_source_route = 1
 net.ipv4.conf.default.accept_source_route = 1
+
+# TLS fingerprinting prevention
+net.ipv4.tcp_timestamps = 0
+
+# TCP mobile network optimization
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_fin_timeout = 30
+net.ipv4.tcp_max_tw_buckets = 50000
+net.ipv4.tcp_keepalive_time = 300
+net.ipv4.tcp_keepalive_intvl = 30
+net.ipv4.tcp_keepalive_probes = 3
+net.ipv4.tcp_window_scaling = 1
+net.core.rmem_default = 87380
+net.core.wmem_default = 65536
+net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_syncookies = 1
+net.ipv4.ip_local_port_range = 32768 60999
+net.ipv4.tcp_retries2 = 10
+net.ipv4.tcp_syn_retries = 3
+net.ipv4.tcp_mtu_probing = 1
+net.ipv4.tcp_base_mss = 1024
+net.ipv4.tcp_max_syn_backlog = 256
+net.core.somaxconn = 256
 EOF
     sysctl -p /etc/sysctl.d/99-proxy.conf
     

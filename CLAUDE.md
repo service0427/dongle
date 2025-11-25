@@ -262,7 +262,7 @@ See `/home/proxy/network-monitor/docs/PROXY_USAGE.md` for detailed usage instruc
 #### 즉시 확인 명령어
 ```bash
 # 1. 현재 상태 확인
-/home/proxy/scripts/check_conntrack.sh
+/home/proxy/scripts/monitoring/check_conntrack.sh
 /home/proxy/scripts/check_socks5_memory.sh
 
 # 2. TIME_WAIT 및 ephemeral 포트 확인
@@ -274,16 +274,16 @@ echo "Ephemeral ports: $(ss -an | grep -E ":[0-9]+\s" | awk '{print $4}' | cut -
 ```bash
 # 문제 발생 시간을 기록한 후 실행
 # 예: 2025-08-20 14:30에 문제 발생
-/home/proxy/scripts/analyze_failure_time.py "2025-08-20 14:30"
+/home/proxy/scripts/monitoring/analyze_failure_time.py "2025-08-20 14:30"
 
 # 상세 분석
-/home/proxy/scripts/analyze_failure_time.py "2025-08-20 14:30" --detailed
+/home/proxy/scripts/monitoring/analyze_failure_time.py "2025-08-20 14:30" --detailed
 ```
 
 ### 시스템 메트릭 수집
 
 #### 자동 수집 (크론)
-- **매분 실행**: `/home/proxy/scripts/collect_system_metrics.sh`
+- **매분 실행**: `/home/proxy/scripts/monitoring/collect_system_metrics.sh`
 - **저장 위치**: `/home/proxy/logs/metrics/YYYY-MM-DD/metrics_HH-MM.json`
 - **보관 기간**: 7일 (자동 삭제)
 - **최대 용량**: 5GB
@@ -313,7 +313,7 @@ echo "15000 65000" > /proc/sys/net/ipv4/ip_local_port_range
 cat /proc/net/nf_conntrack | grep TIME_WAIT | wc -l
 
 # 해결: TIME_WAIT 최적화
-/home/proxy/scripts/optimize_time_wait.sh
+/home/proxy/scripts/optimization/optimize_time_wait.sh
 ```
 
 #### 3. Conntrack 테이블 포화
@@ -345,10 +345,10 @@ echo 524288 > /proc/sys/net/netfilter/nf_conntrack_max
 #### 권장 시스템 설정
 ```bash
 # TCP 최적화 (모바일 네트워크 모방)
-/home/proxy/scripts/optimize_tcp_for_mobile.sh
+/home/proxy/scripts/optimization/optimize_tcp_for_mobile.sh
 
 # TIME_WAIT 최적화
-/home/proxy/scripts/optimize_time_wait.sh
+/home/proxy/scripts/optimization/optimize_time_wait.sh
 ```
 
 ### 네트워크 버퍼 진단
@@ -423,7 +423,7 @@ echo 4194304 > /proc/sys/net/core/wmem_max
 # - Softnet 드롭 통계
 # - netdev_max_backlog 설정
 
-/home/proxy/scripts/analyze_failure_time.py "2025-08-20 14:30"
+/home/proxy/scripts/monitoring/analyze_failure_time.py "2025-08-20 14:30"
 ```
 
 ### TLS 감지 문제 진단 및 해결
@@ -449,7 +449,7 @@ curl --socks5 localhost:10011 https://www.coupang.com -I
 #### 수집된 메트릭 분석
 ```bash
 # 문제 발생 시간대 TLS 관련 분석
-/home/proxy/scripts/analyze_failure_time.py "2025-08-20 14:30"
+/home/proxy/scripts/monitoring/analyze_failure_time.py "2025-08-20 14:30"
 
 # 주요 확인 항목:
 # - TCP 타임스탬프 활성화 여부
@@ -463,11 +463,11 @@ curl --socks5 localhost:10011 https://www.coupang.com -I
 ##### 자동 해결 (권장)
 ```bash
 # 자동으로 Level 1부터 5까지 순차 진행
-/home/proxy/scripts/tls_detection_fix.sh
+/home/proxy/scripts/optimization/tls_detection_fix.sh
 
 # 특정 레벨만 실행
-/home/proxy/scripts/tls_detection_fix.sh 1  # Level 1만
-/home/proxy/scripts/tls_detection_fix.sh 2  # Level 2만
+/home/proxy/scripts/optimization/tls_detection_fix.sh 1  # Level 1만
+/home/proxy/scripts/optimization/tls_detection_fix.sh 2  # Level 2만
 ```
 
 ##### 수동 해결 단계
@@ -485,7 +485,7 @@ curl --socks5 localhost:10011 https://www.coupang.com -I
 **Level 2: TCP 모바일 최적화**
 ```bash
 # 모바일 네트워크 환경 모방
-/home/proxy/scripts/optimize_tcp_for_mobile.sh
+/home/proxy/scripts/optimization/optimize_tcp_for_mobile.sh
 
 # SOCKS5 재시작
 /home/proxy/scripts/socks5/manage_socks5.sh restart all
@@ -494,7 +494,7 @@ curl --socks5 localhost:10011 https://www.coupang.com -I
 **Level 3: 연결 상태 정리**
 ```bash
 # TIME_WAIT 최적화
-/home/proxy/scripts/optimize_time_wait.sh
+/home/proxy/scripts/optimization/optimize_time_wait.sh
 
 # Conntrack 테이블 정리
 conntrack -F
@@ -526,13 +526,13 @@ systemctl restart dongle-toggle-api
 ##### 부팅시 자동 적용
 ```bash
 # /etc/rc.local 또는 systemd 서비스에 추가
-/home/proxy/scripts/optimize_tcp_for_mobile.sh
+/home/proxy/scripts/optimization/optimize_tcp_for_mobile.sh
 ```
 
 ##### 주기적 상태 정리 (크론)
 ```bash
 # crontab -e에 추가 (30분마다)
-*/30 * * * * /home/proxy/scripts/tls_detection_fix.sh 3 > /dev/null 2>&1
+*/30 * * * * /home/proxy/scripts/optimization/tls_detection_fix.sh 3 > /dev/null 2>&1
 ```
 
 #### 모니터링
@@ -560,7 +560,7 @@ ls -la /home/proxy/logs/metrics/$(date +%Y-%m-%d)/
    ```bash
    # 10분 대기 후 분석
    sleep 600
-   /home/proxy/scripts/analyze_failure_time.py "$(date '+%Y-%m-%d %H:%M' -d '5 minutes ago')"
+   /home/proxy/scripts/monitoring/analyze_failure_time.py "$(date '+%Y-%m-%d %H:%M' -d '5 minutes ago')"
    ```
 
 2. **TCP 덤프 수집** (고급)
