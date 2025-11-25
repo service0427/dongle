@@ -10,22 +10,8 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# 크론 또는 자동 실행 여부 확인
-if [ -t 0 ]; then
-    # 터미널에서 실행 시 확인 프롬프트
-    echo -e "${YELLOW}=== USB 허브 전체 재시작 ===${NC}"
-    echo -e "이 작업은 모든 동글의 연결을 일시적으로 끊습니다."
-    echo -n "계속하시겠습니까? (y/n): "
-    read -r answer
-
-    if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
-        echo "취소되었습니다."
-        exit 0
-    fi
-else
-    # 크론이나 백그라운드에서 실행 시 자동 진행
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] USB 허브 자동 재시작 시작"
-fi
+echo -e "${YELLOW}=== USB 허브 전체 재시작 ===${NC}"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] 시작"
 
 # 허브 정보
 MAIN_HUBS_WITH_DONGLES=""
