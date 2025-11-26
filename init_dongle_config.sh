@@ -17,6 +17,13 @@ NC='\033[0m' # No Color
 # config 디렉토리 생성
 mkdir -p "$CONFIG_DIR"
 
+# 기존 상태 파일 제거 (과거 동글 정보 정리)
+STATE_FILE="/home/proxy/proxy_state.json"
+if [ -f "$STATE_FILE" ]; then
+    rm -f "$STATE_FILE"
+    echo -e "${YELLOW}기존 상태 파일 제거: $STATE_FILE${NC}"
+fi
+
 echo -e "${GREEN}=== 동글 설정 초기화 시작 ===${NC}"
 
 # 1. lsusb로 물리적 동글 개수 확인 (최우선)
