@@ -159,11 +159,38 @@ print(json.dumps(data))
 " 2>/dev/null || echo "$PROXY_STATUS")
 fi
 
-# mkt.techb.kr로 상태 전송
-RESPONSE=$(curl -s -X POST http://61.84.75.37:3001/api/proxy \
+# 상태 전송 대상 서버들
+API_SERVERS=(
+    "http://61.84.75.37:3001/api/proxy"
+    "http://61.84.75.37:9999/api/proxy"
+)
+
+# 각 서버로 상태 전송
+for API_URL in "${API_SERVERS[@]}"; do
+    RESPONSE=$(curl -s -X POST "$API_URL" \
+      -H "Content-Type: application/json" \
+      -d "$FORMATTED_STATUS" \
+      -w "\nHTTP_CODE:%{http_code}" \
+      --connect-timeout 5 \
+      --max-time 10)
+
+    API_HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+    API_BODY=$(echo "$RESPONSE" | grep -v "HTTP_CODE:")
+
+    if [ "$API_HTTP_CODE" = "200" ] || [ "$API_HTTP_CODE" = "201" ]; then
+        log_message "SUCCESS: Pushed to $API_URL (HTTP $API_HTTP_CODE)"
+    else
+        log_message "FAILED: Push to $API_URL failed (HTTP $API_HTTP_CODE) - $API_BODY"
+    fi
+done
+
+# 첫 번째 서버 응답을 메인으로 사용 (기존 로직 호환)
+RESPONSE=$(curl -s -X POST "${API_SERVERS[0]}" \
   -H "Content-Type: application/json" \
   -d "$FORMATTED_STATUS" \
-  -w "\nHTTP_CODE:%{http_code}")
+  -w "\nHTTP_CODE:%{http_code}" \
+  --connect-timeout 5 \
+  --max-time 10)
 
 HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
 BODY=$(echo "$RESPONSE" | grep -v "HTTP_CODE:")
