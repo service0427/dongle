@@ -14,8 +14,7 @@ log/
 proxy_state.json
 config/dongle_config.json
 
-# 서버별 자동 생성 스크립트 (init_dongle_config.sh가 생성)
-scripts/restart_all_hubs.sh
+# 서버별 자동 생성 파일 (init_dongle_config.sh/install.sh가 생성)
 scripts/usb_mapping.json
 
 # 데이터베이스 (배포 안함)
