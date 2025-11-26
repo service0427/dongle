@@ -138,6 +138,7 @@ function getProxyStatus() {
                 proxyInfo.external_ip = state[subnet].external_ip || null;
                 proxyInfo.last_toggle = state[subnet].last_toggle || null;
                 proxyInfo.traffic = state[subnet].traffic || state[subnet].traffic_mb || { upload: 0, download: 0 };
+                proxyInfo.signal = state[subnet].signal || null;
             }
             
             proxies.push(proxyInfo);
@@ -186,11 +187,16 @@ function executeToggle(subnet, callback) {
                 if (result.success) {
                     // 성공시 IP와 트래픽 업데이트
                     state[subnet].external_ip = result.ip;
-                    
+
                     if (result.traffic) {
                         state[subnet].traffic = result.traffic;
                     } else if (!state[subnet].traffic) {
                         state[subnet].traffic = { upload: 0, download: 0 };
+                    }
+
+                    // 시그널 정보 저장
+                    if (result.signal) {
+                        state[subnet].signal = result.signal;
                     }
                 } else {
                     // 실패시 IP를 null로 설정
