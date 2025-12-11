@@ -30,7 +30,9 @@ class SOCKS5Server:
         self.running = True
         self.server_socket = None
         self.interface = self.get_interface_name()
-        
+        # 동글 게이트웨이를 DNS 서버로 사용 (DNS leak 방지)
+        self.dns_server = f"192.168.{subnet}.1"
+
     def get_interface_name(self):
         """IP 주소로 인터페이스 이름 찾기"""
         try:
@@ -46,7 +48,69 @@ class SOCKS5Server:
         except Exception as e:
             logger.error(f"Failed to find interface for {self.source_ip}: {e}")
         return None
-        
+
+    def resolve_domain_via_dongle(self, domain):
+        """동글 인터페이스를 통해 DNS 조회 (DNS leak 방지)
+
+        일반 socket.connect()는 시스템 DNS를 사용하여 서버 IP로 DNS 요청이 나감.
+        이 함수는 동글 인터페이스로 DNS 쿼리를 직접 보내 동글 IP로 DNS 요청이 나가도록 함.
+        """
+        try:
+            # DNS 쿼리 패킷 생성
+            transaction_id = b'\x12\x34'
+            flags = b'\x01\x00'  # Standard query
+            questions = b'\x00\x01'
+            answer_rrs = b'\x00\x00'
+            authority_rrs = b'\x00\x00'
+            additional_rrs = b'\x00\x00'
+
+            # 도메인 인코딩
+            qname = b''
+            for part in domain.split('.'):
+                qname += bytes([len(part)]) + part.encode()
+            qname += b'\x00'
+
+            qtype = b'\x00\x01'   # A record
+            qclass = b'\x00\x01'  # IN class
+
+            query = transaction_id + flags + questions + answer_rrs + authority_rrs + additional_rrs + qname + qtype + qclass
+
+            # UDP 소켓으로 DNS 쿼리 (동글 인터페이스 바인딩)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, self.interface.encode())
+            sock.settimeout(5)
+
+            # 동글 게이트웨이로 DNS 쿼리
+            sock.sendto(query, (self.dns_server, 53))
+
+            response, _ = sock.recvfrom(512)
+            sock.close()
+
+            # 응답 파싱 (A 레코드 추출)
+            idx = 12
+            while response[idx] != 0:
+                idx += response[idx] + 1
+            idx += 5  # null byte + qtype(2) + qclass(2)
+
+            # Answer 섹션
+            if len(response) > idx + 12:
+                idx += 2  # name pointer
+                idx += 2  # type
+                idx += 2  # class
+                idx += 4  # ttl
+                rdlength = struct.unpack('!H', response[idx:idx+2])[0]
+                idx += 2
+                if rdlength == 4:
+                    ip = '.'.join(str(b) for b in response[idx:idx+4])
+                    logger.debug(f"DNS resolved {domain} -> {ip} via dongle")
+                    return ip
+
+        except Exception as e:
+            logger.debug(f"Dongle DNS failed for {domain}: {e}, falling back to system DNS")
+
+        # 폴백: 시스템 DNS
+        return socket.gethostbyname(domain)
+
     def start(self):
         """프록시 서버 시작"""
         if not self.interface:
@@ -112,12 +176,14 @@ class SOCKS5Server:
                 addr = socket.inet_ntoa(client_socket.recv(4))
             elif atyp == 3:  # Domain
                 addr_len = client_socket.recv(1)[0]
-                addr = client_socket.recv(addr_len).decode()
+                domain = client_socket.recv(addr_len).decode()
+                # DNS leak 방지: 동글 인터페이스를 통해 DNS 조회
+                addr = self.resolve_domain_via_dongle(domain)
             else:
                 client_socket.send(b"\x05\x08\x00\x01\x00\x00\x00\x00\x00\x00")
                 client_socket.close()
                 return
-                
+
             port = struct.unpack("!H", client_socket.recv(2))[0]
             
             # 원격 서버 연결 (특정 IP 바인딩)
