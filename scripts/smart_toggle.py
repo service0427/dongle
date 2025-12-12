@@ -24,6 +24,7 @@ MAPPING_FILE = "/home/proxy/scripts/usb_mapping.json"
 
 # 결과 전송 설정
 RESULT_CALLBACK_URL = "http://61.84.75.37:10002/toggle/result"
+RESULT_CALLBACK_START_URL = "http://61.84.75.37:10002/toggle/start"
 RESULT_CALLBACK_ENABLED = True
 
 def get_server_ip():
@@ -52,6 +53,27 @@ def get_server_ip():
         pass
 
     return None
+
+def send_start_callback(subnet):
+    """토글 시작을 외부 서버로 전송"""
+    if not RESULT_CALLBACK_ENABLED:
+        return
+
+    try:
+        import requests
+
+        payload = {
+            'server_ip': get_server_ip(),
+            'port': 10000 + subnet
+        }
+
+        requests.post(
+            RESULT_CALLBACK_START_URL,
+            json=payload,
+            timeout=5
+        )
+    except Exception:
+        pass
 
 def send_result_callback(subnet, output):
     """토글 결과를 외부 서버로 전송"""
@@ -756,6 +778,9 @@ class SmartToggle:
     
     def execute(self):
         """스마트 토글 실행"""
+        # 토글 시작 콜백
+        send_start_callback(self.subnet)
+
         try:
             # 0단계: 진단
             diagnosis = self.diagnose_problem()
