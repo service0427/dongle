@@ -87,6 +87,13 @@ LOG_BLOCKED=$(jq -r '.log_blocked' "$CONFIG_FILE" 2>/dev/null)
 
 log "INFO: 방화벽 규칙 적용 시작"
 
+# 0. WireGuard VPN 포트 열기 (UDP 55555)
+WIREGUARD_PORT=55555
+if ! iptables -C INPUT -p udp --dport $WIREGUARD_PORT -j ACCEPT 2>/dev/null; then
+    iptables -I INPUT 1 -p udp --dport $WIREGUARD_PORT -m comment --comment "WireGuard VPN" -j ACCEPT
+    log "INFO: WireGuard UDP 포트 $WIREGUARD_PORT 열림"
+fi
+
 # 1. 기존 SOCKS5 관련 규칙 제거 (모든 규칙 삭제)
 log "INFO: 기존 SOCKS5 방화벽 규칙 제거"
 
