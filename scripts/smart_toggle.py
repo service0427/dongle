@@ -22,6 +22,58 @@ PASSWORD = "KdjLch!@7024"
 TIMEOUT = 10
 MAPPING_FILE = "/home/proxy/scripts/usb_mapping.json"
 
+# 결과 전송 설정
+RESULT_CALLBACK_URL = "http://61.84.75.37:10002/toggle/result"
+RESULT_CALLBACK_ENABLED = True
+
+def get_server_ip():
+    """메인 이더넷 인터페이스(eno1)에서 서버 IP 추출"""
+    try:
+        result = subprocess.run(
+            "ip addr show eno1 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1",
+            shell=True, capture_output=True, text=True, timeout=5
+        )
+        ip = result.stdout.strip()
+        if ip and ip.split('.')[0].isdigit():
+            return ip
+    except:
+        pass
+
+    # eno1 실패 시 첫 번째 공인 IP를 가진 인터페이스 찾기
+    try:
+        result = subprocess.run(
+            "ip route get 8.8.8.8 | grep -oP 'src \\K[0-9.]+'",
+            shell=True, capture_output=True, text=True, timeout=5
+        )
+        ip = result.stdout.strip()
+        if ip and ip.split('.')[0].isdigit():
+            return ip
+    except:
+        pass
+
+    return None
+
+def send_result_callback(subnet, output):
+    """토글 결과를 외부 서버로 전송"""
+    if not RESULT_CALLBACK_ENABLED:
+        return
+
+    try:
+        import requests
+
+        payload = output.copy()
+        payload['server_ip'] = get_server_ip()
+        payload['port'] = 10000 + subnet
+
+        requests.post(
+            RESULT_CALLBACK_URL,
+            json=payload,
+            timeout=5
+        )
+    except Exception:
+        # 콜백 실패해도 무시 (메인 기능에 영향 없음)
+        pass
+
 class SmartToggle:
     def __init__(self, subnet):
         self.subnet = subnet
@@ -792,12 +844,12 @@ def main():
     if len(sys.argv) != 2:
         print(json.dumps({'error': 'Usage: smart_toggle.py <subnet>'}))
         sys.exit(1)
-    
+
     try:
         subnet = int(sys.argv[1])
         if subnet < 11 or subnet > 30:
             raise ValueError('Subnet must be between 11 and 30')
-        
+
         toggle = SmartToggle(subnet)
         result = toggle.execute()
         # 간소화된 출력만 반환
@@ -809,7 +861,10 @@ def main():
             'step': result.get('step', 0)
         }
         print(json.dumps(output, ensure_ascii=False))
-        
+
+        # 결과 전송
+        send_result_callback(subnet, output)
+
     except Exception as e:
         # 실패 시에도 동일한 형식으로 출력
         output = {
@@ -820,6 +875,14 @@ def main():
             'step': 4  # 마지막 단계까지 시도했다고 가정
         }
         print(json.dumps(output, ensure_ascii=False))
+
+        # 실패 결과도 전송
+        try:
+            subnet = int(sys.argv[1])
+            send_result_callback(subnet, output)
+        except:
+            pass
+
         sys.exit(1)
 
 if __name__ == '__main__':
