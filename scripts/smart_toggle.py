@@ -23,8 +23,10 @@ TIMEOUT = 10
 MAPPING_FILE = "/home/proxy/scripts/usb_mapping.json"
 
 # 결과 전송 설정
-RESULT_CALLBACK_URL = "http://61.84.75.37:10002/toggle/result"
-RESULT_CALLBACK_START_URL = "http://61.84.75.37:10002/toggle/start"
+RESULT_CALLBACK_URLS = [
+    ("http://61.84.75.37:10002/toggle/start", "http://61.84.75.37:10002/toggle/result"),  # 운영
+    ("http://61.84.75.37:44010/toggle/start", "http://61.84.75.37:44010/toggle/result"),  # 개발
+]
 RESULT_CALLBACK_ENABLED = True
 
 def get_server_ip():
@@ -67,11 +69,11 @@ def send_start_callback(subnet):
             'port': 10000 + subnet
         }
 
-        requests.post(
-            RESULT_CALLBACK_START_URL,
-            json=payload,
-            timeout=5
-        )
+        for start_url, _ in RESULT_CALLBACK_URLS:
+            try:
+                requests.post(start_url, json=payload, timeout=5)
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -87,11 +89,11 @@ def send_result_callback(subnet, output):
         payload['server_ip'] = get_server_ip()
         payload['port'] = 10000 + subnet
 
-        requests.post(
-            RESULT_CALLBACK_URL,
-            json=payload,
-            timeout=5
-        )
+        for _, result_url in RESULT_CALLBACK_URLS:
+            try:
+                requests.post(result_url, json=payload, timeout=5)
+            except Exception:
+                pass
     except Exception:
         # 콜백 실패해도 무시 (메인 기능에 영향 없음)
         pass

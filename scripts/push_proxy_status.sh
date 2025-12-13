@@ -21,11 +21,11 @@ log_toggle() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$AUTO_TOGGLE_LOG"
 }
 
-# 메인 인터페이스 IP 동적으로 가져오기
-MAIN_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '{print $7; exit}')
+# 메인 인터페이스 IP 동적으로 가져오기 (크론용 절대경로)
+MAIN_IP=$(/usr/sbin/ip route get 8.8.8.8 2>/dev/null | awk '{print $7; exit}')
 if [ -z "$MAIN_IP" ]; then
     # 실패시 eno1 인터페이스 직접 확인
-    MAIN_IP=$(ip addr show eno1 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d'/' -f1)
+    MAIN_IP=$(/usr/sbin/ip addr show eno1 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d'/' -f1)
 fi
 # 여전히 없으면 기본값
 if [ -z "$MAIN_IP" ]; then
@@ -163,6 +163,7 @@ fi
 API_SERVERS=(
     "http://61.84.75.37:3001/api/proxy"
     "http://61.84.75.37:29999/api/proxy"
+    "http://61.84.75.37:44010/sync/dongle"  # 개발
 )
 
 # 각 서버로 상태 전송
