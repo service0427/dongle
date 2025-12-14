@@ -166,6 +166,7 @@ step=4 + success=false → 모든 복구 시도 실패
   "available_proxies": [
     {
       "proxy_url": "socks5://112.161.54.7:10016",
+      "subnet": 16,
       "external_ip": "175.223.26.202",
       "last_toggle": "2025-12-13 22:49:25",
       "traffic": {
@@ -173,6 +174,11 @@ step=4 + success=false → 모든 복구 시도 실패
         "download": 13143595860
       },
       "connected": true,
+      "toggle_status": {
+        "status": "idle",
+        "message": "Ready for toggle",
+        "last_toggle": "2025-12-13 22:49:25"
+      },
       "signal": {
         "rsrp": -105,
         "rsrq": -9,
@@ -186,6 +192,7 @@ step=4 + success=false → 모든 복구 시도 실패
     },
     {
       "proxy_url": "socks5://112.161.54.7:10017",
+      "subnet": 17,
       "external_ip": "39.7.54.121",
       "last_toggle": "2025-12-13 22:50:16",
       "traffic": {
@@ -193,6 +200,12 @@ step=4 + success=false → 모든 복구 시도 실패
         "download": 601586495927
       },
       "connected": true,
+      "toggle_status": {
+        "status": "recent",
+        "message": "Recently toggled",
+        "last_toggle": "2025-12-13 22:50:16",
+        "seconds_ago": 45
+      },
       "signal": {
         "rsrp": -111,
         "rsrq": -11,
@@ -239,11 +252,74 @@ step=4 + success=false → 모든 복구 시도 실패
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | proxy_url | string | SOCKS5 프록시 URL |
+| subnet | int | 동글 서브넷 번호 (11-30) |
 | external_ip | string | 현재 외부 IP |
 | last_toggle | string | 마지막 토글 시간 |
 | traffic | object | 누적 트래픽 (upload/download 바이트) |
 | connected | bool | 연결 상태 |
+| toggle_status | object | 토글 진행 상태 (아래 참조) |
 | signal | object | LTE 신호 정보 |
+
+#### toggle_status 필드
+
+토글 진행 상태를 나타내는 객체입니다. `status` 값에 따라 포함되는 필드가 다릅니다.
+
+| status 값 | 의미 | 설명 |
+|-----------|------|------|
+| `idle` | 대기 중 | 토글 가능 상태 |
+| `in_progress` | 진행 중 | 현재 토글이 진행 중 (60초 타임아웃) |
+| `recent` | 최근 완료 | 60초 이내에 토글 완료됨 |
+| `timeout` | 타임아웃 | 60초 초과하여 stuck 상태 |
+
+##### idle 상태
+```json
+{
+  "status": "idle",
+  "message": "Ready for toggle",
+  "last_toggle": "2025-12-13 22:49:25"
+}
+```
+
+##### in_progress 상태
+```json
+{
+  "status": "in_progress",
+  "message": "Toggle in progress",
+  "started_at": "2025-12-13T22:50:00.000Z",
+  "elapsed_seconds": 15
+}
+```
+
+##### recent 상태
+```json
+{
+  "status": "recent",
+  "message": "Recently toggled",
+  "last_toggle": "2025-12-13 22:50:16",
+  "seconds_ago": 45
+}
+```
+
+##### timeout 상태
+```json
+{
+  "status": "timeout",
+  "message": "Toggle timed out (exceeded 60s)",
+  "started_at": "2025-12-13T22:49:00.000Z",
+  "elapsed_seconds": 65
+}
+```
+
+#### toggle_status 필드 상세
+
+| 필드 | 타입 | 조건 | 설명 |
+|------|------|------|------|
+| status | string | 항상 | idle, in_progress, recent, timeout 중 하나 |
+| message | string | 항상 | 상태 설명 메시지 |
+| last_toggle | string | idle, recent | 마지막 토글 완료 시간 |
+| started_at | string | in_progress, timeout | 토글 시작 시간 (ISO 8601) |
+| elapsed_seconds | int | in_progress, timeout | 경과 시간 (초) |
+| seconds_ago | int | recent | 마지막 토글 후 경과 시간 (초) |
 
 #### dongle_check 필드
 
@@ -269,6 +345,7 @@ step=4 + success=false → 모든 복구 시도 실패
   "available_proxies": [
     {
       "proxy_url": "socks5://112.161.54.7:10011",
+      "subnet": 11,
       "external_ip": null,
       "last_toggle": null,
       "traffic": {
@@ -276,6 +353,11 @@ step=4 + success=false → 모든 복구 시도 실패
         "download": 0
       },
       "connected": false,
+      "toggle_status": {
+        "status": "idle",
+        "message": "Ready for toggle",
+        "last_toggle": null
+      },
       "signal": null
     }
   ],
