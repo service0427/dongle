@@ -12,8 +12,7 @@ const fs = require('fs');
 const PORT = 80;
 const TOGGLE_TIMEOUT = 30000; // 30초
 const STATE_FILE = '/home/proxy/proxy_state.json';
-const MAX_CONCURRENT_TOGGLES = 3; // 최대 동시 토글 수
-const activeLocks = new Set(); // 현재 실행 중인 토글 추적
+// 동시 토글 제한은 서버측에서 관리
 
 // 서버 외부 IP 동적 감지 (캐시)
 let serverIP = null;
@@ -343,36 +342,10 @@ const server = http.createServer((req, res) => {
             return;
         }
         
-        // 포트별 중복 체크
-        if (activeLocks.has(subnet)) {
-            res.writeHead(409); // Conflict
-            res.end(JSON.stringify({ 
-                error: `Toggle already in progress for subnet ${subnet}`,
-                code: 'TOGGLE_IN_PROGRESS'
-            }));
-            return;
-        }
-        
-        // 동시 토글 수 제한 체크
-        if (activeLocks.size >= MAX_CONCURRENT_TOGGLES) {
-            res.writeHead(429); // Too Many Requests
-            res.end(JSON.stringify({ 
-                error: `Too many concurrent toggles (max: ${MAX_CONCURRENT_TOGGLES}, current: ${activeLocks.size})`,
-                code: 'TOO_MANY_TOGGLES',
-                current_toggles: Array.from(activeLocks),
-                max_concurrent: MAX_CONCURRENT_TOGGLES
-            }));
-            return;
-        }
-        
-        // 락 설정
-        activeLocks.add(subnet);
-        console.log(`[${new Date().toISOString()}] Toggle request for subnet ${subnet} (${activeLocks.size}/${MAX_CONCURRENT_TOGGLES} active)`);
-        
+        console.log(`[${new Date().toISOString()}] Toggle request for subnet ${subnet}`);
+
         executeToggle(subnet, (result) => {
-            // 락 해제
-            activeLocks.delete(subnet);
-            console.log(`[${new Date().toISOString()}] Toggle ${result.success ? 'SUCCESS' : 'FAILED'} for subnet ${subnet} (${activeLocks.size}/${MAX_CONCURRENT_TOGGLES} active)`);
+            console.log(`[${new Date().toISOString()}] Toggle ${result.success ? 'SUCCESS' : 'FAILED'} for subnet ${subnet}`);
             res.writeHead(result.success ? 200 : 500);
             res.end(JSON.stringify(result));
         });
