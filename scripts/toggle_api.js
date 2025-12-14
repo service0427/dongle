@@ -10,9 +10,64 @@ const path = require('path');
 const fs = require('fs');
 
 const PORT = 80;
-const TOGGLE_TIMEOUT = 30000; // 30초
+const TOGGLE_TIMEOUT = 60000; // 60초 - 토글 명령 타임아웃
 const STATE_FILE = '/home/proxy/proxy_state.json';
-// 동시 토글 제한은 서버측에서 관리
+const TOGGLE_PROGRESS_TIMEOUT = TOGGLE_TIMEOUT; // 진행 중 상태 타임아웃 (동일하게)
+
+// 토글 진행 상태 추적 (subnet -> { started_at: timestamp })
+const toggleProgress = new Map();
+
+// 토글 상태 확인 함수
+function getToggleStatus(subnet) {
+    const state = loadState();
+    const subnetState = state[subnet] || {};
+    const now = Date.now();
+
+    // 현재 진행 중인지 확인
+    if (toggleProgress.has(subnet)) {
+        const progress = toggleProgress.get(subnet);
+        const elapsed = now - progress.started_at;
+
+        // 60초 초과시 타임아웃 처리 (stuck 상태)
+        if (elapsed > TOGGLE_PROGRESS_TIMEOUT) {
+            toggleProgress.delete(subnet);
+            return {
+                status: 'timeout',
+                message: 'Toggle timed out (exceeded 60s)',
+                started_at: new Date(progress.started_at).toISOString(),
+                elapsed_seconds: Math.floor(elapsed / 1000)
+            };
+        }
+
+        return {
+            status: 'in_progress',
+            message: 'Toggle in progress',
+            started_at: new Date(progress.started_at).toISOString(),
+            elapsed_seconds: Math.floor(elapsed / 1000)
+        };
+    }
+
+    // 마지막 토글 시간 확인
+    if (subnetState.last_toggle) {
+        const lastToggleTime = new Date(subnetState.last_toggle).getTime();
+        const elapsed = now - lastToggleTime;
+
+        if (elapsed < TOGGLE_PROGRESS_TIMEOUT) {
+            return {
+                status: 'recent',
+                message: 'Recently toggled',
+                last_toggle: subnetState.last_toggle,
+                seconds_ago: Math.floor(elapsed / 1000)
+            };
+        }
+    }
+
+    return {
+        status: 'idle',
+        message: 'Ready for toggle',
+        last_toggle: subnetState.last_toggle || null
+    };
+}
 
 // 서버 외부 IP 동적 감지 (캐시)
 let serverIP = null;
@@ -126,12 +181,14 @@ function getProxyStatus() {
             
             let proxyInfo = {
                 proxy_url: `socks5://${getServerIP()}:${mapping.socks5_port}`,
+                subnet: subnet,
                 external_ip: null,
                 last_toggle: null,
                 traffic: { upload: 0, download: 0 },
-                connected: activeSubnets.includes(subnet)  // 실제 인터페이스 존재 여부
+                connected: activeSubnets.includes(subnet),  // 실제 인터페이스 존재 여부
+                toggle_status: getToggleStatus(subnet)  // 토글 진행 상태
             };
-            
+
             // 저장된 상태에서 정보 가져오기
             if (state[subnet]) {
                 proxyInfo.external_ip = state[subnet].external_ip || null;
@@ -139,7 +196,7 @@ function getProxyStatus() {
                 proxyInfo.traffic = state[subnet].traffic || state[subnet].traffic_mb || { upload: 0, download: 0 };
                 proxyInfo.signal = state[subnet].signal || null;
             }
-            
+
             proxies.push(proxyInfo);
         });
         
@@ -342,9 +399,13 @@ const server = http.createServer((req, res) => {
             return;
         }
         
+        // 토글 진행 상태 설정
+        toggleProgress.set(subnet, { started_at: Date.now() });
         console.log(`[${new Date().toISOString()}] Toggle request for subnet ${subnet}`);
 
         executeToggle(subnet, (result) => {
+            // 토글 완료 시 진행 상태 제거
+            toggleProgress.delete(subnet);
             console.log(`[${new Date().toISOString()}] Toggle ${result.success ? 'SUCCESS' : 'FAILED'} for subnet ${subnet}`);
             res.writeHead(result.success ? 200 : 500);
             res.end(JSON.stringify(result));
