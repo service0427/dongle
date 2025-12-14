@@ -16,6 +16,68 @@ PASSWORD = "KdjLch!@7024"
 TIMEOUT = 5
 CONFIG_FILE = "/home/proxy/config/dongle_config.json"
 
+def get_usb_device_exists(usb_path):
+    """USB 장치가 존재하는지 확인"""
+    result = subprocess.run(
+        f"ls /sys/bus/usb/devices/{usb_path} 2>/dev/null",
+        shell=True, capture_output=True, text=True, timeout=2
+    )
+    return result.returncode == 0
+
+def get_interface_exists(interface):
+    """네트워크 인터페이스가 존재하는지 확인"""
+    result = subprocess.run(
+        f"ip link show {interface} 2>/dev/null",
+        shell=True, capture_output=True, text=True, timeout=2
+    )
+    return result.returncode == 0
+
+def get_uhubctl_port_status(hub, port):
+    """uhubctl로 포트 전원 상태 확인 (power/off)"""
+    result = subprocess.run(
+        f"sudo uhubctl -l {hub} -p {port}",
+        shell=True, capture_output=True, text=True, timeout=5
+    )
+    output = result.stdout + result.stderr
+    if "power" in output.lower():
+        return "POWER"
+    elif "off" in output.lower():
+        return "OFF"
+    return "UNKNOWN"
+
+def print_power_status(label, hub, port, usb_path, interface, gateway):
+    """전원 상태 종합 출력"""
+    uhub_status = get_uhubctl_port_status(hub, port)
+    usb_exists = get_usb_device_exists(usb_path)
+    iface_exists = get_interface_exists(interface)
+
+    # ping 체크
+    ping_result = subprocess.run(
+        f"ping -c 1 -W 1 {gateway}",
+        shell=True, capture_output=True, text=True, timeout=2
+    )
+    ping_ok = ping_result.returncode == 0
+
+    print(f"\n  [{label}]")
+    print(f"    uhubctl 포트 상태 : {uhub_status}")
+    print(f"    USB 장치 존재     : {'✓ 있음' if usb_exists else '✗ 없음'} (/sys/bus/usb/devices/{usb_path})")
+    print(f"    네트워크 인터페이스: {'✓ 있음' if iface_exists else '✗ 없음'} ({interface})")
+    print(f"    Gateway ping      : {'✓ 응답' if ping_ok else '✗ 무응답'} ({gateway})")
+
+    # 전원 상태 판정
+    if uhub_status == "OFF" and not usb_exists and not iface_exists and not ping_ok:
+        print(f"    ▶ 판정: 🔴 전원 완전 차단됨")
+        return "OFF"
+    elif uhub_status == "POWER" and usb_exists and iface_exists and ping_ok:
+        print(f"    ▶ 판정: 🟢 전원 정상 공급 중")
+        return "ON"
+    elif uhub_status == "POWER" and usb_exists:
+        print(f"    ▶ 판정: 🟡 부팅 중...")
+        return "BOOTING"
+    else:
+        print(f"    ▶ 판정: 🟠 불확실 (부분 상태)")
+        return "PARTIAL"
+
 def reboot_via_hub(subnet):
     """허브 포트를 통한 동글 재부팅"""
     try:
@@ -58,10 +120,15 @@ def reboot_via_hub(subnet):
         gateway = dongle_info.get('gateway', f'192.168.{subnet}.1')
 
         print(f"USB 경로: {usb_path}")
-        print(f"허브 포트 재부팅 시도: Hub {hub}, Port {port}")
+        print(f"허브 포트: Hub {hub}, Port {port}")
+        print(f"인터페이스: {interface}")
         print(f"Gateway: {gateway}")
 
+        # 전원 차단 전 상태 확인
+        print_power_status("전원 차단 전", hub, port, usb_path, interface, gateway)
+
         # uhubctl로 포트 끄기
+        print(f"\n포트 전원 차단 명령 실행...")
         cmd_off = f"sudo uhubctl -l {hub} -p {port} -a off"
         result = subprocess.run(cmd_off, shell=True, capture_output=True, text=True, timeout=10)
 
@@ -69,42 +136,20 @@ def reboot_via_hub(subnet):
             print(f"포트 끄기 실패: {result.stderr}")
             return False
 
-        print(f"포트 OFF 완료")
+        # 전원 차단 후 상태 확인 (2초 대기)
+        time.sleep(2)
+        status = print_power_status("전원 차단 후", hub, port, usb_path, interface, gateway)
 
-        # 1초 대기 후 ping 체크 시작
-        time.sleep(1)
-        print(f"동글 전원 차단 확인 중...")
-
-        consecutive_fails = 0
-        max_checks = 20
-
-        for i in range(max_checks):
-            # ping 체크 (timeout 1초)
-            ping_result = subprocess.run(
-                f"ping -c 1 -W 1 {gateway}",
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-
-            if ping_result.returncode != 0:
-                consecutive_fails += 1
-                print(f"  [{i+1}초] ping 실패 ({consecutive_fails}/3)")
-
-                if consecutive_fails >= 3:
-                    print(f"✓ 동글 전원 차단 확인됨 (연속 3회 실패)")
+        if status != "OFF":
+            print(f"\n⚠ 전원이 완전히 차단되지 않았습니다. 추가 대기...")
+            for i in range(5):
+                time.sleep(1)
+                status = print_power_status(f"추가 대기 {i+1}초", hub, port, usb_path, interface, gateway)
+                if status == "OFF":
                     break
-            else:
-                consecutive_fails = 0
-                print(f"  [{i+1}초] 아직 응답 중...")
-
-            time.sleep(1)
-
-        if consecutive_fails < 3:
-            print(f"⚠ 20초 경과, 강제 진행")
 
         # uhubctl로 포트 켜기
+        print(f"\n포트 전원 공급 명령 실행...")
         cmd_on = f"sudo uhubctl -l {hub} -p {port} -a on"
         result = subprocess.run(cmd_on, shell=True, capture_output=True, text=True, timeout=10)
 
@@ -112,24 +157,17 @@ def reboot_via_hub(subnet):
             print(f"포트 켜기 실패: {result.stderr}")
             return False
 
-        print(f"\n포트 ON 완료, 동글 부팅 대기 중... (5초)")
-        time.sleep(5)
+        # 부팅 대기 및 상태 확인
+        print(f"\n동글 부팅 대기 중...")
+        for i in range(12):  # 최대 12초 대기
+            time.sleep(2)
+            status = print_power_status(f"부팅 대기 {(i+1)*2}초", hub, port, usb_path, interface, gateway)
+            if status == "ON":
+                print(f"\n✓ 동글 재부팅 완료!")
+                return True
 
-        # 부팅 확인
-        ping_result = subprocess.run(
-            f"ping -c 1 -W 2 {gateway}",
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=3
-        )
-
-        if ping_result.returncode == 0:
-            print(f"✓ 동글 재부팅 완료! ({gateway} 응답 확인)")
-            return True
-        else:
-            print(f"⚠ 동글이 아직 부팅 중입니다. 30-60초 정도 더 기다려주세요.")
-            return True
+        print(f"\n⚠ 동글이 아직 부팅 중입니다. 추가로 30-60초 정도 기다려주세요.")
+        return True
 
     except Exception as e:
         print(f"허브 포트 재부팅 실패: {e}")
