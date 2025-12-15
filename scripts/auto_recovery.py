@@ -26,7 +26,7 @@ LOCK_DIR = "/tmp"
 SMART_TOGGLE = "/home/proxy/scripts/dev_smart_toggle.py"
 
 # 파라미터
-CHECK_TIMEOUT = 3          # SOCKS5 체크 타임아웃 (초)
+CHECK_TIMEOUT = 5          # SOCKS5 체크 타임아웃 (초) - 느린 동글 대응
 FAIL_THRESHOLD = 3         # 연속 실패 횟수
 RECOVERY_COOLDOWN = 15     # 같은 동글 재복구 방지 (분)
 MAX_CONCURRENT_RECOVERY = 2  # 동시 복구 최대 수
