@@ -362,6 +362,7 @@ class DevSmartToggle:
             if ip and ip.split('.')[0].isdigit():
                 self.result['ip'] = ip
                 log(f"{C.GRN}✓ SOCKS5 재시작 성공 → {ip}{C.R}", "OK")
+                self.collect_final_info()  # 성공 시 트래픽/신호 정보 수집
                 return True
 
         log(f"{C.RED}✗ SOCKS5 재시작 실패{C.R}", "FAIL")
@@ -560,7 +561,7 @@ class DevSmartToggle:
             pass
 
     def collect_modem_info(self, client):
-        """모뎀 정보 수집"""
+        """모뎀 정보 수집 (클라이언트 전달)"""
         try:
             stats = client.monitoring.traffic_statistics()
             self.result['traffic'] = {
@@ -588,6 +589,29 @@ class DevSmartToggle:
         except:
             pass
 
+    def collect_final_info(self):
+        """최종 트래픽/신호 정보 수집 (모뎀 재연결)"""
+        log("트래픽/신호 정보 수집...", "INFO")
+        try:
+            connection = Connection(f'http://{self.gateway}/', username=USERNAME, password=PASSWORD, timeout=TIMEOUT)
+            try:
+                client = Client(connection)
+            except Exception as e:
+                if "Already login" in str(e):
+                    self.logout_modem()
+                    time.sleep(1)
+                    connection = Connection(f'http://{self.gateway}/', username=USERNAME, password=PASSWORD, timeout=TIMEOUT)
+                    client = Client(connection)
+                else:
+                    raise
+
+            self.collect_modem_info(client)
+            log(f"트래픽: UP={self.result['traffic']['upload']}, DOWN={self.result['traffic']['download']}", "OK")
+            if self.result.get('signal'):
+                log(f"신호: RSRP={self.result['signal'].get('rsrp')}, SINR={self.result['signal'].get('sinr')}, Band={self.result['signal'].get('band')}", "OK")
+        except Exception as e:
+            log(f"정보 수집 실패: {e}", "WARN")
+
     def verify_socks5(self):
         """SOCKS5 최종 검증"""
         log("SOCKS5 최종 검증...", "INFO")
@@ -598,6 +622,7 @@ class DevSmartToggle:
         if ip and ip.split('.')[0].isdigit():
             log(f"{C.GRN}✓ SOCKS5 OK → {ip}{C.R}", "OK")
             self.result['ip'] = ip
+            self.collect_final_info()  # 성공 시 트래픽/신호 정보 수집
             return True
 
         log("SOCKS5 실패, 재시작 시도", "WARN")
@@ -609,6 +634,7 @@ class DevSmartToggle:
         if ip and ip.split('.')[0].isdigit():
             log(f"{C.GRN}✓ SOCKS5 재시작 후 OK{C.R}", "OK")
             self.result['ip'] = ip
+            self.collect_final_info()  # 성공 시 트래픽/신호 정보 수집
             return True
 
         log(f"{C.RED}✗ SOCKS5 검증 실패{C.R}", "FAIL")
