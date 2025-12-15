@@ -452,6 +452,73 @@ class DevSmartToggle:
             log(f"{C.RED}토글 예외: {e}{C.R}", "FAIL")
             return False
 
+    def get_usb_path(self):
+        """인터페이스에서 USB 경로 추출"""
+        if not self.interface:
+            return None
+        try:
+            r = subprocess.run(
+                f"readlink -f /sys/class/net/{self.interface}/device 2>/dev/null | grep -oE '[0-9]+-[0-9]+(\\.[0-9]+)*' | tail -1",
+                shell=True, capture_output=True, text=True, timeout=5
+            )
+            path = r.stdout.strip()
+            return path if path else None
+        except:
+            return None
+
+    def usb_unbind_bind(self):
+        """USB unbind/bind로 동글 리셋 (uhubctl 없이 작동)"""
+        log("", "INFO")
+        log(f"{'─'*50}", "STEP")
+        log("USB unbind/bind 리셋", "STEP")
+        log(f"{'─'*50}", "STEP")
+
+        usb_path = self.get_usb_path()
+        if not usb_path:
+            log(f"{C.RED}USB 경로를 찾을 수 없음{C.R}", "FAIL")
+            return False
+
+        log(f"USB 경로: {usb_path}", "INFO")
+
+        # Unbind
+        log("USB unbind 실행...", "INFO")
+        r = run(f"echo '{usb_path}' | sudo tee /sys/bus/usb/drivers/usb/unbind", timeout=10)
+        if not r or r.returncode != 0:
+            log(f"{C.RED}unbind 실패{C.R}", "FAIL")
+            return False
+
+        log("5초 대기...", "INFO")
+        time.sleep(5)
+
+        # Bind
+        log("USB bind 실행...", "INFO")
+        r = run(f"echo '{usb_path}' | sudo tee /sys/bus/usb/drivers/usb/bind", timeout=10)
+        if not r or r.returncode != 0:
+            log(f"{C.RED}bind 실패{C.R}", "FAIL")
+            return False
+
+        log("동글 재인식 대기 (30초)...", "INFO")
+        time.sleep(30)
+
+        # 인터페이스 재확인
+        r = run(f"ip addr | grep '{self.local_ip}' -B2 | head -1 | cut -d: -f2 | tr -d ' '", show=False)
+        new_interface = r.stdout.strip() if r else ""
+
+        if new_interface:
+            self.interface = new_interface
+            log(f"인터페이스 재인식: {new_interface}", "OK")
+
+            # 라우팅 재설정
+            self.fix_routing()
+            time.sleep(2)
+
+            if self.check_connectivity():
+                log(f"{C.GRN}✓ USB 리셋 후 복구 성공{C.R}", "OK")
+                return True
+
+        log(f"{C.RED}✗ USB 리셋 후 복구 실패{C.R}", "FAIL")
+        return False
+
     def reboot_dongle(self):
         """동글 재부팅 (reboot_dongle.py 호출)"""
         log("", "INFO")
@@ -735,8 +802,17 @@ class DevSmartToggle:
                     self.print_result(total_start, "네트워크 토글")
                     return self.result
 
-            # 토글 실패 → 재부팅
-            log("토글 실패 → 동글 재부팅 시도", "WARN")
+            # 토글 실패 → USB unbind/bind 시도 (빠름)
+            log("토글 실패 → USB unbind/bind 시도", "WARN")
+            if self.usb_unbind_bind():
+                if self.verify_socks5():
+                    self.result['success'] = True
+                    self.result['step'] = 3
+                    self.print_result(total_start, "USB unbind/bind")
+                    return self.result
+
+            # USB 리셋 실패 → 전원 재부팅 시도
+            log("USB 리셋 실패 → 전원 재부팅 시도", "WARN")
             if self.reboot_dongle():
                 if "NO_IP_RULE" in self.problems or "NO_DEFAULT_ROUTE" in self.problems:
                     self.fix_routing()
