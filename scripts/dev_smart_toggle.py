@@ -170,8 +170,15 @@ class SmartToggle:
         self.interface = r.stdout.strip() if r else ""
 
         if not self.interface:
-            log(f"{C.RED}✗ 인터페이스 없음{C.R}", "FAIL")
-            return False
+            log(f"{C.RED}✗ 인터페이스 없음 (IP: {self.local_ip}){C.R}", "FAIL")
+            # IP 할당 대기 후 재시도
+            log("IP 할당 대기 중 (5초)...", "INFO")
+            time.sleep(5)
+            r = run(f"ip addr | grep '{self.local_ip}' -B2 | head -1 | cut -d: -f2 | tr -d ' '")
+            self.interface = r.stdout.strip() if r else ""
+            if not self.interface:
+                log(f"{C.RED}✗ 인터페이스 여전히 없음{C.R}", "FAIL")
+                return False
         log(f"인터페이스: {self.interface}", "OK")
 
         # 2. 모뎀 로그인 + APN/신호 체크
@@ -253,7 +260,9 @@ class SmartToggle:
         # Default route 추가
         r = run(f"ip route show table {self.subnet} | grep default")
         if not r or not r.stdout.strip():
-            run(f"sudo ip route add default via {self.gateway} dev {self.interface} table {self.subnet}")
+            r = run(f"sudo ip route add default via {self.gateway} dev {self.interface} table {self.subnet}")
+            if r and r.returncode != 0:
+                log(f"라우팅 추가 실패: {r.stderr.strip()}", "WARN")
 
         # 확인
         r = run(f"ip route show table {self.subnet} | grep default")
