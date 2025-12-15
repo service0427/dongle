@@ -719,118 +719,77 @@ class DevSmartToggle:
     # ─────────────────────────────────────────────────────────────
 
     def execute(self):
-        """스마트 토글 실행"""
+        """스마트 토글 실행 (단순화: 토글 → 실패시 재부팅+라우팅)"""
         total_start = time.time()
 
         # 1. 사전 분석
         self.pre_analysis()
 
-        # 2. 문제 없으면 토글만
-        if not self.problems:
-            log("", "INFO")
-            log(f"{C.GRN}정상 상태 → 네트워크 토글만 실행{C.R}", "INFO")
-
-            if self.network_toggle():
-                if self.verify_socks5():
-                    self.result['success'] = True
-                    self.result['step'] = 0
-                    self.print_result(total_start, "정상 토글")
-                    return self.result
-
-        # 3. 문제별 해결
-
-        # 인터페이스 없음 → 재부팅 필요
+        # 2. 인터페이스 없으면 바로 재부팅
         if "NO_INTERFACE" in self.problems:
             log("", "INFO")
-            log(f"{C.YEL}인터페이스 없음 → 동글 재부팅 필요{C.R}", "WARN")
+            log(f"{C.YEL}인터페이스 없음 → 바로 재부팅{C.R}", "WARN")
+            return self.do_reboot_recovery(total_start)
 
-            if self.reboot_dongle():
-                # 라우팅도 확인
-                if "NO_IP_RULE" in self.problems or "NO_DEFAULT_ROUTE" in self.problems:
-                    self.fix_routing()
-
-                if self.verify_socks5():
-                    self.result['success'] = True
-                    self.result['step'] = 4
-                    self.print_result(total_start, "동글 재부팅")
-                    return self.result
-
-            self.result['step'] = 4
-            self.print_result(total_start, "실패 - 재부팅 후에도 복구 안됨")
-            return self.result
-
-        # SOCKS5만 문제
-        if set(self.problems) <= {"SOCKS5_INACTIVE", "SOCKS5_NOT_WORKING"}:
-            log("", "INFO")
-            log(f"{C.YEL}SOCKS5만 문제 → 서비스 재시작{C.R}", "WARN")
-
-            if self.restart_socks5():
-                self.result['success'] = True
-                self.result['step'] = 0
-                self.print_result(total_start, "SOCKS5 재시작")
-                return self.result
-
-        # HTTPS만 안됨
-        if "HTTPS_ONLY_FAIL" in self.problems:
-            log("", "INFO")
-            log(f"{C.YEL}HTTPS만 실패 → SOCKS5 재시작{C.R}", "WARN")
-
-            if self.restart_socks5():
-                self.result['success'] = True
-                self.result['step'] = 0
-                self.print_result(total_start, "SOCKS5 재시작")
-                return self.result
-
-        # 라우팅 문제
+        # 3. 라우팅 문제 먼저 수정 (빠름)
         if "NO_IP_RULE" in self.problems or "NO_DEFAULT_ROUTE" in self.problems:
             log("", "INFO")
             log(f"{C.YEL}라우팅 문제 → 라우팅 수정{C.R}", "WARN")
+            self.fix_routing()
+            time.sleep(2)
 
-            if self.fix_routing():
-                time.sleep(2)
-                if self.check_connectivity():
-                    if self.verify_socks5():
-                        self.result['success'] = True
-                        self.result['step'] = 1
-                        self.print_result(total_start, "라우팅 수정")
-                        return self.result
-
-        # 연결 문제 → 토글
-        if any(p in self.problems for p in ["GATEWAY_UNREACHABLE", "EXTERNAL_PING_FAIL", "HTTP_FAIL", "SLOW_CONNECTION", "LOW_SIGNAL"]):
-            log("", "INFO")
-            log(f"{C.YEL}연결/신호 문제 → 네트워크 토글{C.R}", "WARN")
-
-            if self.network_toggle():
+            # 라우팅만 수정해서 바로 되면 끝
+            if self.check_connectivity():
                 if self.verify_socks5():
                     self.result['success'] = True
-                    self.result['step'] = 2
-                    self.print_result(total_start, "네트워크 토글")
+                    self.result['step'] = 1
+                    self.print_result(total_start, "라우팅 수정")
                     return self.result
 
-            # 토글 실패 → USB unbind/bind 시도 (빠름)
-            log("토글 실패 → USB unbind/bind 시도", "WARN")
+        # 4. 네트워크 토글 시도
+        log("", "INFO")
+        log(f"{C.CYN}네트워크 토글 시도{C.R}", "INFO")
+
+        if self.network_toggle():
+            if self.verify_socks5():
+                self.result['success'] = True
+                self.result['step'] = 2
+                self.print_result(total_start, "네트워크 토글")
+                return self.result
+
+        # 5. 토글 실패 → 재부팅 + 라우팅
+        log("", "INFO")
+        log(f"{C.YEL}토글 실패 → 재부팅 + 라우팅{C.R}", "WARN")
+        return self.do_reboot_recovery(total_start)
+
+    def do_reboot_recovery(self, total_start):
+        """재부팅 + 라우팅으로 복구 시도"""
+        # USB unbind/bind 먼저 (빠름)
+        if self.interface:
+            log("USB unbind/bind 시도...", "INFO")
             if self.usb_unbind_bind():
                 if self.verify_socks5():
                     self.result['success'] = True
                     self.result['step'] = 3
-                    self.print_result(total_start, "USB unbind/bind")
+                    self.print_result(total_start, "USB 리셋")
                     return self.result
 
-            # USB 리셋 실패 → 전원 재부팅 시도
-            log("USB 리셋 실패 → 전원 재부팅 시도", "WARN")
-            if self.reboot_dongle():
-                if "NO_IP_RULE" in self.problems or "NO_DEFAULT_ROUTE" in self.problems:
-                    self.fix_routing()
+        # 전원 재부팅
+        log("전원 재부팅 시도...", "INFO")
+        if self.reboot_dongle():
+            # 라우팅 재설정
+            self.fix_routing()
+            time.sleep(2)
 
-                if self.verify_socks5():
-                    self.result['success'] = True
-                    self.result['step'] = 4
-                    self.print_result(total_start, "동글 재부팅")
-                    return self.result
+            if self.verify_socks5():
+                self.result['success'] = True
+                self.result['step'] = 4
+                self.print_result(total_start, "재부팅 + 라우팅")
+                return self.result
 
-        # 모든 시도 실패
+        # 최종 실패
         self.result['step'] = 4
-        self.print_result(total_start, "모든 시도 실패")
+        self.print_result(total_start, "복구 실패")
         return self.result
 
     def print_result(self, start_time, msg):
