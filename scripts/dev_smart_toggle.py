@@ -540,16 +540,21 @@ class DevSmartToggle:
                 if line.strip():
                     log(f"  {line}", "TIME")
 
+        # 성공/실패 관계없이 복구 대기 후 확인 (API reboot가 성공했을 수 있음)
         if r and r.returncode == 0:
-            log("재부팅 명령 성공, 90초 대기...", "INFO")
-            time.sleep(90)
+            log("재부팅 명령 성공, 60초 대기...", "INFO")
+            time.sleep(60)
+        else:
+            log("재부팅 명령 실패, 하지만 API reboot가 작동했을 수 있음. 30초 대기...", "WARN")
+            time.sleep(30)
 
-            # 재분석
-            self.pre_analysis()
+        # 재분석
+        self.pre_analysis()
 
-            # 재부팅 후 라우팅이 사라지는 경우가 많음 → 자동 수정
+        # 인터페이스가 있으면 라우팅 확인/수정
+        if self.interface:
             if "NO_IP_RULE" in self.problems or "NO_DEFAULT_ROUTE" in self.problems:
-                log("재부팅 후 라우팅 재설정 필요", "WARN")
+                log("라우팅 재설정 필요", "WARN")
                 self.fix_routing()
                 time.sleep(2)
 
