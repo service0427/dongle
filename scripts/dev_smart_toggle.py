@@ -368,6 +368,23 @@ class DevSmartToggle:
         log(f"{C.RED}✗ SOCKS5 재시작 실패{C.R}", "FAIL")
         return False
 
+    def connect_modem(self, max_retries=3):
+        """모뎀 연결 (Already login 자동 처리)"""
+        for attempt in range(max_retries):
+            try:
+                connection = Connection(f'http://{self.gateway}/', username=USERNAME, password=PASSWORD, timeout=TIMEOUT)
+                client = Client(connection)
+                return client
+            except Exception as e:
+                if "Already login" in str(e) or "108003" in str(e):
+                    log(f"Already login (시도 {attempt+1}/{max_retries}) → 로그아웃 후 재시도", "WARN")
+                    self.logout_modem()
+                    time.sleep(2)  # 충분한 대기
+                    continue
+                else:
+                    raise
+        return None
+
     def network_toggle(self):
         """네트워크 토글 (모뎀 API)"""
         log("", "INFO")
@@ -381,19 +398,11 @@ class DevSmartToggle:
         try:
             log(f"모뎀 연결: {self.gateway}", "INFO")
             conn_start = time.time()
-            connection = Connection(f'http://{self.gateway}/', username=USERNAME, password=PASSWORD, timeout=TIMEOUT)
 
-            try:
-                client = Client(connection)
-            except Exception as e:
-                if "Already login" in str(e):
-                    log("Already login → 로그아웃 후 재연결", "WARN")
-                    self.logout_modem()
-                    time.sleep(1)
-                    connection = Connection(f'http://{self.gateway}/', username=USERNAME, password=PASSWORD, timeout=TIMEOUT)
-                    client = Client(connection)
-                else:
-                    raise
+            client = self.connect_modem()
+            if not client:
+                log(f"{C.RED}모뎀 연결 실패 (3회 시도){C.R}", "FAIL")
+                return False
 
             log(f"모뎀 연결 완료 ({time.time()-conn_start:.2f}s)", "OK")
 
@@ -593,17 +602,10 @@ class DevSmartToggle:
         """최종 트래픽/신호 정보 수집 (모뎀 재연결)"""
         log("트래픽/신호 정보 수집...", "INFO")
         try:
-            connection = Connection(f'http://{self.gateway}/', username=USERNAME, password=PASSWORD, timeout=TIMEOUT)
-            try:
-                client = Client(connection)
-            except Exception as e:
-                if "Already login" in str(e):
-                    self.logout_modem()
-                    time.sleep(1)
-                    connection = Connection(f'http://{self.gateway}/', username=USERNAME, password=PASSWORD, timeout=TIMEOUT)
-                    client = Client(connection)
-                else:
-                    raise
+            client = self.connect_modem(max_retries=2)
+            if not client:
+                log("모뎀 연결 실패, 정보 수집 건너뜀", "WARN")
+                return
 
             self.collect_modem_info(client)
             log(f"트래픽: UP={self.result['traffic']['upload']}, DOWN={self.result['traffic']['download']}", "OK")
