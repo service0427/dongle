@@ -470,8 +470,23 @@ class DevSmartToggle:
             # 재분석
             self.pre_analysis()
 
+            # 재부팅 후 라우팅이 사라지는 경우가 많음 → 자동 수정
+            if "NO_IP_RULE" in self.problems or "NO_DEFAULT_ROUTE" in self.problems:
+                log("재부팅 후 라우팅 재설정 필요", "WARN")
+                self.fix_routing()
+                time.sleep(2)
+
             if self.check_connectivity():
                 log(f"{C.GRN}✓ 재부팅 후 복구 성공{C.R}", "OK")
+                return True
+
+            # 라우팅 수정 후에도 실패하면 한번 더 시도
+            log("연결 실패, 라우팅 재확인...", "WARN")
+            self.fix_routing()
+            time.sleep(3)
+
+            if self.check_connectivity():
+                log(f"{C.GRN}✓ 라우팅 재설정 후 복구 성공{C.R}", "OK")
                 return True
 
         log(f"{C.RED}✗ 재부팅 후에도 복구 실패{C.R}", "FAIL")
