@@ -207,9 +207,9 @@ def reset_usb_controller():
     log("USB 컨트롤러 강제 리셋 시작...", "USB_RESET")
 
     try:
-        # PCI ID 찾기
+        # PCI ID 찾기 (cron 환경에서 PATH 문제 방지)
         result = subprocess.run(
-            "lspci -D 2>/dev/null | grep -i xhci | awk '{print $1}' | head -1",
+            "/usr/sbin/lspci -D 2>/dev/null | grep -i xhci | awk '{print $1}' | head -1",
             shell=True, capture_output=True, text=True, timeout=10
         )
         pci_id = result.stdout.strip()
