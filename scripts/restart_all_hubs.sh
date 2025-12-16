@@ -32,7 +32,7 @@ echo -e "\n${YELLOW}USB 허브 재시작 중...${NC}"
 
 # USB 컨트롤러 강제 리셋 함수 (uhubctl 실패 시 사용)
 reset_usb_controller() {
-    local PCI_ID=$(lspci -D 2>/dev/null | grep -i xhci | awk '{print $1}' | head -1)
+    local PCI_ID=$(/usr/sbin/lspci -D 2>/dev/null | grep -i xhci | awk '{print $1}' | head -1)
     if [ -n "$PCI_ID" ]; then
         echo -e "${YELLOW}USB 컨트롤러 강제 리셋: $PCI_ID${NC}"
         echo -n "$PCI_ID" > /sys/bus/pci/drivers/xhci_hcd/unbind 2>/dev/null
