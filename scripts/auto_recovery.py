@@ -233,22 +233,34 @@ def reset_usb_controller():
             shell=True, timeout=10
         )
 
-        log("USB 컨트롤러 리셋 완료, 15초 대기...", "USB_RESET")
-        time.sleep(15)
+        log("USB 컨트롤러 리셋 완료, 인터페이스 대기 중...", "USB_RESET")
 
         # 상태 저장
         with open(USB_RESET_STATE_FILE, 'w') as f:
             json.dump({'last_reset': datetime.now().isoformat()}, f)
 
-        # 동글 수 확인
+        # 인터페이스가 올라올 때까지 대기 (최대 60초)
+        expected_count = 4  # 최소 동글 수
+        for i in range(12):  # 5초 * 12 = 60초
+            time.sleep(5)
+            result = subprocess.run(
+                "ip addr | grep -cE '192\\.168\\.(1[6-9]|2[0-9])\\.100'",
+                shell=True, capture_output=True, text=True, timeout=10
+            )
+            iface_count = int(result.stdout.strip() or 0)
+            log(f"대기 중... {(i+1)*5}초, 인터페이스: {iface_count}개", "USB_RESET")
+            if iface_count >= expected_count:
+                break
+
+        # 최종 동글 수 확인
         result = subprocess.run(
             "lsusb | grep -ci 'huawei\\|14db'",
             shell=True, capture_output=True, text=True, timeout=10
         )
-        count = int(result.stdout.strip() or 0)
-        log(f"리셋 후 동글 수: {count}", "USB_RESET")
+        usb_count = int(result.stdout.strip() or 0)
+        log(f"리셋 후 USB: {usb_count}개, 인터페이스: {iface_count}개", "USB_RESET")
 
-        return True
+        return iface_count > 0  # 인터페이스가 있어야 성공
 
     except Exception as e:
         log(f"USB 리셋 실패: {e}", "ERROR")
@@ -315,11 +327,18 @@ def _main():
 
         if reset_usb_controller():
             log("USB 리셋 완료, init_dongle_config.sh 실행...", "USB_RESET")
-            subprocess.run("/home/proxy/init_dongle_config.sh", shell=True, timeout=120)
+            result = subprocess.run(
+                "/home/proxy/init_dongle_config.sh",
+                shell=True, timeout=180, capture_output=True, text=True
+            )
+            if "서비스 제거" in result.stdout:
+                log("경고: 서비스가 제거됨 - 인터페이스 부족 가능", "WARN")
             log("설정 재초기화 완료", "USB_RESET")
             # 상태 리셋
             save_state({})
             return  # 이번 체크는 종료, 다음 크론에서 다시 체크
+        else:
+            log("USB 리셋 실패 또는 인터페이스 없음 - init 스킵", "USB_RESET")
 
     # 결과 처리
     for subnet in subnets:
