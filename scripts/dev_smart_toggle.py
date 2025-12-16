@@ -321,6 +321,37 @@ class SmartToggle:
         except:
             pass
 
+    def usb_power_cycle(self):
+        """USB 전원 사이클 (인터페이스 없을 때)"""
+        log(f"{'─'*50}", "STEP")
+        log("USB 전원 사이클", "STEP")
+        log(f"{'─'*50}", "STEP")
+
+        # power_control.sh 사용
+        log(f"동글 {self.subnet} 전원 OFF...", "INFO")
+        r = run(f"/home/proxy/scripts/power_control.sh off {self.subnet}", timeout=30)
+        if r and r.returncode == 0:
+            log("전원 OFF 성공", "OK")
+        else:
+            log("전원 OFF 실패 - 계속 진행", "WARN")
+
+        time.sleep(3)
+
+        log(f"동글 {self.subnet} 전원 ON...", "INFO")
+        r = run(f"/home/proxy/scripts/power_control.sh on {self.subnet}", timeout=30)
+        if r and r.returncode == 0:
+            log("전원 ON 성공", "OK")
+        else:
+            log("전원 ON 실패", "WARN")
+            return False
+
+        # usb_modeswitch 실행 (Mass Storage Mode 대응)
+        time.sleep(5)
+        log("USB 모드 스위치 실행...", "INFO")
+        run("usb_modeswitch -c /etc/usb_modeswitch.d/12d1:1f01 2>/dev/null || true", timeout=10)
+
+        return True
+
     def execute(self):
         """메인 실행"""
         start = time.time()
@@ -345,11 +376,15 @@ class SmartToggle:
         log("", "INFO")
         log(f"{C.YEL}문제 감지 ({status}) → 재부팅{C.R}", "WARN")
 
-        if not self.reboot_dongle():
-            log("재부팅 명령 실패, 하지만 계속 진행", "WARN")
-
-        # 3. 재부팅 대기
-        self.wait_for_dongle(60)
+        if status == "NO_INTERFACE":
+            # 인터페이스 없음 → USB 전원 사이클
+            self.usb_power_cycle()
+            self.wait_for_dongle(90)  # 전원 사이클은 더 오래 대기
+        else:
+            # 일반 재부팅
+            if not self.reboot_dongle():
+                log("재부팅 명령 실패, 하지만 계속 진행", "WARN")
+            self.wait_for_dongle(60)
 
         # 4. 재부팅 후 설정
         if not self.setup_after_reboot():
