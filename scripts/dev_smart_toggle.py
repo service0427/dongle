@@ -249,27 +249,33 @@ class SmartToggle:
         except Exception as e:
             log(f"모뎀 연결 실패 (무시하고 계속): {e}", "WARN")
 
-        # 3. 라우팅 설정
+        # 3. 라우팅 설정 (재시도 포함)
         log("라우팅 설정...", "INFO")
 
-        # IP rule 확인/추가
-        r = run(f"ip rule show | grep 'from {self.local_ip}'")
-        if not r or not r.stdout.strip():
-            run(f"sudo ip rule add from {self.local_ip} table {self.subnet}")
+        for attempt in range(3):
+            # IP rule 확인/추가
+            r = run(f"ip rule show | grep 'from {self.local_ip}'")
+            if not r or not r.stdout.strip():
+                run(f"ip rule add from {self.local_ip} table {self.subnet}")
 
-        # Default route 추가
-        r = run(f"ip route show table {self.subnet} | grep default")
-        if not r or not r.stdout.strip():
-            r = run(f"sudo ip route add default via {self.gateway} dev {self.interface} table {self.subnet}")
-            if r and r.returncode != 0:
-                log(f"라우팅 추가 실패: {r.stderr.strip()}", "WARN")
+            # Default route 삭제 후 재추가 (기존 잘못된 라우트 제거)
+            run(f"ip route del default table {self.subnet} 2>/dev/null")
+            r = run(f"ip route add default via {self.gateway} dev {self.interface} table {self.subnet}")
+            if r and r.returncode != 0 and "File exists" not in (r.stderr or ""):
+                log(f"라우팅 추가 실패 (시도 {attempt+1}/3): {r.stderr.strip()}", "WARN")
 
-        # 확인
-        r = run(f"ip route show table {self.subnet} | grep default")
-        if r and r.stdout.strip():
-            log("라우팅 설정 완료", "OK")
+            # 확인
+            time.sleep(0.5)
+            r = run(f"ip route show table {self.subnet}")
+            if r and f"via {self.gateway}" in r.stdout:
+                log("라우팅 설정 완료", "OK")
+                break
+
+            if attempt < 2:
+                log(f"라우팅 확인 실패, 재시도 {attempt+2}/3...", "WARN")
+                time.sleep(1)
         else:
-            log(f"{C.RED}라우팅 설정 실패{C.R}", "FAIL")
+            log(f"{C.RED}라우팅 설정 실패 (3회 시도){C.R}", "FAIL")
             return False
 
         # 4. SOCKS5 서비스 재시작
