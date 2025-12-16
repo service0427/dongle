@@ -272,6 +272,11 @@ class SmartToggle:
             log(f"{C.RED}라우팅 설정 실패{C.R}", "FAIL")
             return False
 
+        # 4. SOCKS5 서비스 재시작
+        log("SOCKS5 서비스 재시작...", "INFO")
+        run(f"systemctl restart dongle-socks5-{self.subnet}")
+        time.sleep(2)
+
         return True
 
     def verify(self):
