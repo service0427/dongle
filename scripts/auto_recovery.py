@@ -161,8 +161,33 @@ def run_recovery(subnet):
     finally:
         remove_lock(subnet)
 
+MAIN_LOCK_FILE = "/tmp/auto_recovery.lock"
+
+def acquire_main_lock():
+    """메인 프로세스 락 획득"""
+    if os.path.exists(MAIN_LOCK_FILE):
+        try:
+            with open(MAIN_LOCK_FILE, 'r') as f:
+                pid = int(f.read().strip())
+            # 프로세스가 아직 실행 중인지 확인
+            if os.path.exists(f"/proc/{pid}"):
+                return False
+        except:
+            pass
+    # 락 파일 생성
+    with open(MAIN_LOCK_FILE, 'w') as f:
+        f.write(str(os.getpid()))
+    return True
+
+def release_main_lock():
+    """메인 프로세스 락 해제"""
+    try:
+        os.remove(MAIN_LOCK_FILE)
+    except:
+        pass
+
 def main():
-    # 옵션 처리
+    # 옵션 처리 (락 없이)
     if len(sys.argv) > 1:
         if sys.argv[1] == "--status":
             state = load_state()
@@ -172,6 +197,18 @@ def main():
             save_state({})
             log("상태 리셋 완료", "INFO")
             return
+
+    # 중복 실행 방지
+    if not acquire_main_lock():
+        log("이미 실행 중인 프로세스 있음 - 종료", "WARN")
+        return
+
+    try:
+        _main()
+    finally:
+        release_main_lock()
+
+def _main():
 
     # 설정 로드
     subnets = load_config()
