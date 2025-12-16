@@ -30,6 +30,9 @@ CHECK_TIMEOUT = 5          # SOCKS5 체크 타임아웃 (초) - 느린 동글 �
 FAIL_THRESHOLD = 2         # 연속 실패 횟수 (2회 = 6분 후 복구)
 RECOVERY_COOLDOWN = 3      # 복구 실패 시 재시도 대기 (분)
 MAX_CONCURRENT_RECOVERY = 2  # 동시 복구 최대 수
+USB_RESET_THRESHOLD = 0.7  # 이 비율 이상 동시 실패 시 USB 컨트롤러 리셋 (70%)
+USB_RESET_COOLDOWN = 10    # USB 리셋 후 쿨다운 (분)
+USB_RESET_STATE_FILE = "/tmp/usb_reset_state.json"
 
 def log(msg, level="INFO"):
     """로그 출력"""
@@ -186,6 +189,71 @@ def release_main_lock():
     except:
         pass
 
+def can_usb_reset():
+    """USB 리셋 쿨다운 확인"""
+    try:
+        if os.path.exists(USB_RESET_STATE_FILE):
+            with open(USB_RESET_STATE_FILE, 'r') as f:
+                data = json.load(f)
+                last_reset = datetime.fromisoformat(data.get('last_reset', '2000-01-01'))
+                if datetime.now() - last_reset < timedelta(minutes=USB_RESET_COOLDOWN):
+                    return False
+    except:
+        pass
+    return True
+
+def reset_usb_controller():
+    """USB 컨트롤러 강제 리셋 (xhci_hcd unbind/bind)"""
+    log("USB 컨트롤러 강제 리셋 시작...", "USB_RESET")
+
+    try:
+        # PCI ID 찾기
+        result = subprocess.run(
+            "lspci -D 2>/dev/null | grep -i xhci | awk '{print $1}' | head -1",
+            shell=True, capture_output=True, text=True, timeout=10
+        )
+        pci_id = result.stdout.strip()
+
+        if not pci_id:
+            log("USB 컨트롤러 PCI ID를 찾을 수 없음", "ERROR")
+            return False
+
+        log(f"USB 컨트롤러: {pci_id}", "USB_RESET")
+
+        # unbind
+        subprocess.run(
+            f"echo -n '{pci_id}' > /sys/bus/pci/drivers/xhci_hcd/unbind",
+            shell=True, timeout=10
+        )
+        time.sleep(2)
+
+        # bind
+        subprocess.run(
+            f"echo -n '{pci_id}' > /sys/bus/pci/drivers/xhci_hcd/bind",
+            shell=True, timeout=10
+        )
+
+        log("USB 컨트롤러 리셋 완료, 15초 대기...", "USB_RESET")
+        time.sleep(15)
+
+        # 상태 저장
+        with open(USB_RESET_STATE_FILE, 'w') as f:
+            json.dump({'last_reset': datetime.now().isoformat()}, f)
+
+        # 동글 수 확인
+        result = subprocess.run(
+            "lsusb | grep -ci 'huawei\\|14db'",
+            shell=True, capture_output=True, text=True, timeout=10
+        )
+        count = int(result.stdout.strip() or 0)
+        log(f"리셋 후 동글 수: {count}", "USB_RESET")
+
+        return True
+
+    except Exception as e:
+        log(f"USB 리셋 실패: {e}", "ERROR")
+        return False
+
 def main():
     # 옵션 처리 (락 없이)
     if len(sys.argv) > 1:
@@ -235,6 +303,23 @@ def _main():
             subnet = futures[future]
             success, ip = future.result()
             results[subnet] = (success, ip)
+
+    # 다수 동글 동시 실패 감지 (USB 컨트롤러 문제)
+    total = len(subnets)
+    failed = sum(1 for s in subnets if not results.get(s, (False, None))[0])
+    fail_ratio = failed / total if total > 0 else 0
+
+    if fail_ratio >= USB_RESET_THRESHOLD and can_usb_reset():
+        log(f"다수 동글 동시 실패 감지: {failed}/{total} ({fail_ratio*100:.0f}%)", "USB_RESET")
+        log("USB 컨트롤러 리셋 시도...", "USB_RESET")
+
+        if reset_usb_controller():
+            log("USB 리셋 완료, init_dongle_config.sh 실행...", "USB_RESET")
+            subprocess.run("/home/proxy/init_dongle_config.sh", shell=True, timeout=120)
+            log("설정 재초기화 완료", "USB_RESET")
+            # 상태 리셋
+            save_state({})
+            return  # 이번 체크는 종료, 다음 크론에서 다시 체크
 
     # 결과 처리
     for subnet in subnets:

@@ -30,6 +30,22 @@ done
 
 echo -e "\n${YELLOW}USB 허브 재시작 중...${NC}"
 
+# USB 컨트롤러 강제 리셋 함수 (uhubctl 실패 시 사용)
+reset_usb_controller() {
+    local PCI_ID=$(lspci -D 2>/dev/null | grep -i xhci | awk '{print $1}' | head -1)
+    if [ -n "$PCI_ID" ]; then
+        echo -e "${YELLOW}USB 컨트롤러 강제 리셋: $PCI_ID${NC}"
+        echo -n "$PCI_ID" > /sys/bus/pci/drivers/xhci_hcd/unbind 2>/dev/null
+        sleep 2
+        echo -n "$PCI_ID" > /sys/bus/pci/drivers/xhci_hcd/bind 2>/dev/null
+        sleep 10
+        return 0
+    else
+        echo -e "${RED}USB 컨트롤러를 찾을 수 없습니다 (lspci 설치 필요)${NC}"
+        return 1
+    fi
+}
+
 # 동글이 연결된 메인 허브만 재시작
 for main_hub in $MAIN_HUBS_WITH_DONGLES; do
     echo -e "  ${GREEN}메인 허브 ${main_hub} 재시작...${NC}"
@@ -68,6 +84,13 @@ done
 
 if [ "$CURRENT_COUNT" -lt "$EXPECTED_COUNT" ]; then
     echo -e "\n${YELLOW}⚠ 일부 동글이 아직 연결되지 않았습니다 (${CURRENT_COUNT}/${EXPECTED_COUNT})${NC}"
+    echo -e "${YELLOW}USB 컨트롤러 강제 리셋 시도...${NC}"
+    reset_usb_controller
+
+    # 리셋 후 다시 대기
+    sleep 15
+    CURRENT_COUNT=$(lsusb | grep -ci "huawei" || echo "0")
+    echo -e "리셋 후 동글 수: ${CURRENT_COUNT}/${EXPECTED_COUNT}"
 fi
 
 # 네트워크 인터페이스 대기
