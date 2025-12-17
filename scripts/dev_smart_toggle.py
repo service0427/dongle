@@ -404,6 +404,20 @@ class SmartToggle:
             self.print_result(start)
             return self.result
 
+        # 6. 검증 실패 시 USB 전원 재시작 시도 (fallback)
+        if status != "NO_INTERFACE":  # 이미 USB 재시작 안했으면
+            log("", "INFO")
+            log(f"{C.YEL}API 재부팅 후 검증 실패 → USB 전원 재시작 시도{C.R}", "WARN")
+            self.usb_power_cycle()
+            self.wait_for_dongle(90)
+
+            # USB 전원 재시작 후 재설정
+            if self.setup_after_reboot():
+                if self.verify():
+                    self.result['step'] = 2  # USB 전원 재시작 성공
+                    self.print_result(start)
+                    return self.result
+
         # 실패
         self.result['step'] = 4  # 실패
         self.print_result(start)
